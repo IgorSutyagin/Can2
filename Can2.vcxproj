@@ -30,7 +30,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -38,14 +38,14 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -93,9 +93,11 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>opengl32.lib</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -115,9 +117,11 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>opengl32.lib</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -139,11 +143,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>opengl32.lib</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -183,30 +189,71 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Angles.h" />
+    <ClInclude Include="AntexAntenna.h" />
+    <ClInclude Include="AntexFile.h" />
+    <ClInclude Include="AntexPcvView.h" />
+    <ClInclude Include="AntexSourceView.h" />
+    <ClInclude Include="Archive.h" />
     <ClInclude Include="Can2.h" />
     <ClInclude Include="Can2Doc.h" />
+    <ClInclude Include="Can2Exception.h" />
     <ClInclude Include="Can2View.h" />
     <ClInclude Include="ChildFrm.h" />
     <ClInclude Include="ClassView.h" />
+    <ClInclude Include="Colors.h" />
+    <ClInclude Include="ListCtrlEx.h" />
     <ClInclude Include="FileView.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="Gnss.h" />
     <ClInclude Include="MainFrm.h" />
+    <ClInclude Include="Node.h" />
+    <ClInclude Include="OglEntity.h" />
+    <ClInclude Include="Settings.h" />
     <ClInclude Include="OutputWnd.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="Plot2d.h" />
+    <ClInclude Include="Plot3d.h" />
     <ClInclude Include="Points.h" />
     <ClInclude Include="PropertiesWnd.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="RingBar.h" />
+    <ClInclude Include="RingDifView.h" />
+    <ClInclude Include="RingDistCtrl.h" />
+    <ClInclude Include="RingDoc.h" />
+    <ClInclude Include="RingFrm.h" />
+    <ClInclude Include="RingNode.h" />
+    <ClInclude Include="RingPcoView.h" />
+    <ClInclude Include="RingPcvView.h" />
+    <ClInclude Include="RingSourcePg.h" />
+    <ClInclude Include="RingTabView.h" />
+    <ClInclude Include="SelAntDlg.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="Tools.h" />
+    <ClInclude Include="TreeCtrlEx.h" />
+    <ClInclude Include="TreeParser.h" />
+    <ClInclude Include="VecMat.h" />
     <ClInclude Include="ViewTree.h" />
+    <ClInclude Include="PcoView.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AntexAntenna.cpp" />
+    <ClCompile Include="AntexFile.cpp" />
+    <ClCompile Include="AntexPcvView.cpp" />
+    <ClCompile Include="AntexSourceView.cpp" />
+    <ClCompile Include="Archive.cpp" />
     <ClCompile Include="Can2.cpp" />
     <ClCompile Include="Can2Doc.cpp" />
+    <ClCompile Include="Can2Exception.cpp" />
     <ClCompile Include="Can2View.cpp" />
     <ClCompile Include="ChildFrm.cpp" />
     <ClCompile Include="ClassView.cpp" />
+    <ClCompile Include="Colors.cpp" />
+    <ClCompile Include="ListCtrlEx.cpp" />
     <ClCompile Include="FileView.cpp" />
+    <ClCompile Include="Gnss.cpp" />
     <ClCompile Include="MainFrm.cpp" />
+    <ClCompile Include="OglEntity.cpp" />
     <ClCompile Include="OutputWnd.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -214,8 +261,27 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Plot2d.cpp" />
+    <ClCompile Include="Plot3d.cpp" />
     <ClCompile Include="PropertiesWnd.cpp" />
+    <ClCompile Include="RingBar.cpp" />
+    <ClCompile Include="RingDifView.cpp" />
+    <ClCompile Include="RingDistCtrl.cpp" />
+    <ClCompile Include="RingDoc.cpp" />
+    <ClCompile Include="RingFrm.cpp" />
+    <ClCompile Include="RingNode.cpp" />
+    <ClCompile Include="RingPcoView.cpp" />
+    <ClCompile Include="RingPcvView.cpp" />
+    <ClCompile Include="RingSourcePg.cpp" />
+    <ClCompile Include="RingTabView.cpp" />
+    <ClCompile Include="SelAntDlg.cpp" />
+    <ClCompile Include="Settings.cpp" />
+    <ClCompile Include="Tools.cpp" />
+    <ClCompile Include="TreeCtrlEx.cpp" />
+    <ClCompile Include="TreeParser.cpp" />
+    <ClCompile Include="VecMap.cpp" />
     <ClCompile Include="ViewTree.cpp" />
+    <ClCompile Include="PcoView.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Can2.rc" />
@@ -249,6 +315,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="res\Can2.rc2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="can2.exe.manifest" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

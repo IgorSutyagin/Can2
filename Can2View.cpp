@@ -1,5 +1,36 @@
-
-// Can2View.cpp : implementation of the CCan2View class
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// 
+//  The CAN2 software is distributed under the following BSD 2-clause license and 
+//  additional exclusive clauses. Users are permitted to develop, produce or sell their 
+//  own non-commercial or commercial products utilizing, linking or including CAN2 as 
+//  long as they comply with the license.BSD 2 - Clause License
+// 
+//  Copyright(c) 2024, TOPCON, All rights reserved.
+// 
+//  Redistribution and use in source and binary forms, with or without
+//  modification, are permitted provided that the following conditions are met :
+// 
+//  1. Redistributions of source code must retain the above copyright notice, this
+//  list of conditions and the following disclaimer.
+// 
+//  2. Redistributions in binary form must reproduce the above copyright notice,
+//  this list of conditions and the following disclaimer in the documentation
+//  and /or other materials provided with the distribution.
+// 
+//  3. The software package includes some companion executive binaries or shared 
+//  libraries necessary to execute APs on Windows. These licenses succeed to the 
+//  original ones of these software.
+// 
+//  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//  DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+//  FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//  DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// 	SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// 	CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// 	OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// 	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
 #include "pch.h"
@@ -12,6 +43,10 @@
 
 #include "Can2Doc.h"
 #include "Can2View.h"
+#include "AntexPcvView.h"
+#include "PcoView.h"
+#include "AntexSourceView.h"
+#include "ChildFrm.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -20,87 +55,24 @@
 
 // CCan2View
 
-IMPLEMENT_DYNCREATE(CCan2View, CView)
+IMPLEMENT_DYNCREATE(CCan2View, CTabView)
 
-BEGIN_MESSAGE_MAP(CCan2View, CView)
-	// Standard printing commands
-	ON_COMMAND(ID_FILE_PRINT, &CView::OnFilePrint)
-	ON_COMMAND(ID_FILE_PRINT_DIRECT, &CView::OnFilePrint)
-	ON_COMMAND(ID_FILE_PRINT_PREVIEW, &CCan2View::OnFilePrintPreview)
-	ON_WM_CONTEXTMENU()
-	ON_WM_RBUTTONUP()
+BEGIN_MESSAGE_MAP(CCan2View, CTabView)
+	ON_WM_CREATE()
+	ON_WM_ERASEBKGND()
 END_MESSAGE_MAP()
 
 // CCan2View construction/destruction
 
 CCan2View::CCan2View() noexcept
 {
-	// TODO: add construction code here
-
+	m_pPcvView = nullptr;
+	m_pPcoView = nullptr;
+	m_pSrcView = nullptr;
 }
 
 CCan2View::~CCan2View()
 {
-}
-
-BOOL CCan2View::PreCreateWindow(CREATESTRUCT& cs)
-{
-	// TODO: Modify the Window class or styles here by modifying
-	//  the CREATESTRUCT cs
-
-	return CView::PreCreateWindow(cs);
-}
-
-// CCan2View drawing
-
-void CCan2View::OnDraw(CDC* /*pDC*/)
-{
-	CCan2Doc* pDoc = GetDocument();
-	ASSERT_VALID(pDoc);
-	if (!pDoc)
-		return;
-
-	// TODO: add draw code for native data here
-}
-
-
-// CCan2View printing
-
-
-void CCan2View::OnFilePrintPreview()
-{
-#ifndef SHARED_HANDLERS
-	AFXPrintPreview(this);
-#endif
-}
-
-BOOL CCan2View::OnPreparePrinting(CPrintInfo* pInfo)
-{
-	// default preparation
-	return DoPreparePrinting(pInfo);
-}
-
-void CCan2View::OnBeginPrinting(CDC* /*pDC*/, CPrintInfo* /*pInfo*/)
-{
-	// TODO: add extra initialization before printing
-}
-
-void CCan2View::OnEndPrinting(CDC* /*pDC*/, CPrintInfo* /*pInfo*/)
-{
-	// TODO: add cleanup after printing
-}
-
-void CCan2View::OnRButtonUp(UINT /* nFlags */, CPoint point)
-{
-	ClientToScreen(&point);
-	OnContextMenu(this, point);
-}
-
-void CCan2View::OnContextMenu(CWnd* /* pWnd */, CPoint point)
-{
-#ifndef SHARED_HANDLERS
-	theApp.GetContextMenuManager()->ShowPopupMenu(IDR_POPUP_EDIT, point.x, point.y, this, TRUE);
-#endif
 }
 
 
@@ -109,12 +81,12 @@ void CCan2View::OnContextMenu(CWnd* /* pWnd */, CPoint point)
 #ifdef _DEBUG
 void CCan2View::AssertValid() const
 {
-	CView::AssertValid();
+	CTabView::AssertValid();
 }
 
 void CCan2View::Dump(CDumpContext& dc) const
 {
-	CView::Dump(dc);
+	CTabView::Dump(dc);
 }
 
 CCan2Doc* CCan2View::GetDocument() const // non-debug version is inline
@@ -124,5 +96,39 @@ CCan2Doc* CCan2View::GetDocument() const // non-debug version is inline
 }
 #endif //_DEBUG
 
+void CCan2View::onSignalChanged()
+{
+	m_pPcvView->regenAll();
+	m_pPcoView->updateCurves();
+}
 
 // CCan2View message handlers
+
+int CCan2View::OnCreate(LPCREATESTRUCT lpCreateStruct)
+{
+	if (CTabView::OnCreate(lpCreateStruct) == -1)
+		return -1;
+
+	AddView(RUNTIME_CLASS(CAntexPcvView), "PCV", 1);
+	AddView(RUNTIME_CLASS(CPcoView), "PCO", 2);
+	AddView(RUNTIME_CLASS(CAntexSourceView), "SRC", 3);
+
+	m_pPcvView = (CAntexPcvView*)m_wndTabs.GetTabWnd(0);
+	m_pPcoView = (CPcoView*)m_wndTabs.GetTabWnd(1);
+	m_pSrcView = (CAntexSourceView*)m_wndTabs.GetTabWnd(2);
+
+	return 0;
+}
+
+BOOL CCan2View::OnEraseBkgnd(CDC* pDC)
+{
+	return CTabView::OnEraseBkgnd(pDC);
+}
+
+void CCan2View::OnInitialUpdate()
+{
+	CTabView::OnInitialUpdate();
+
+	CCan2Doc* pDoc = GetDocument();
+	pDoc->SetTitle(pDoc->m_node->getName().c_str());
+}
