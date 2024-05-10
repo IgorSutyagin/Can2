@@ -41,6 +41,7 @@ class CAntexPcvView;
 //class CPcvDlgBar;
 class CPcoView;
 class CAntexSourceView;
+class CPcoTableView;
 
 class CCan2View : public CTabView
 {
@@ -57,6 +58,7 @@ public:
 	CAntexPcvView* m_pPcvView;
 	CPcoView* m_pPcoView;
 	CAntexSourceView* m_pSrcView;
+	CPcoTableView* m_pPcoTableView;
 
 // Operations
 public:

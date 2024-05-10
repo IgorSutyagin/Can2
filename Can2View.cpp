@@ -45,6 +45,7 @@
 #include "Can2View.h"
 #include "AntexPcvView.h"
 #include "PcoView.h"
+#include "PcoTableView.h"
 #include "AntexSourceView.h"
 #include "ChildFrm.h"
 
@@ -69,6 +70,7 @@ CCan2View::CCan2View() noexcept
 	m_pPcvView = nullptr;
 	m_pPcoView = nullptr;
 	m_pSrcView = nullptr;
+	m_pPcoTableView = nullptr;
 }
 
 CCan2View::~CCan2View()
@@ -111,11 +113,13 @@ int CCan2View::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	AddView(RUNTIME_CLASS(CAntexPcvView), "PCV", 1);
 	AddView(RUNTIME_CLASS(CPcoView), "PCO", 2);
-	AddView(RUNTIME_CLASS(CAntexSourceView), "SRC", 3);
+	AddView(RUNTIME_CLASS(CPcoTableView), "PCO (table)", 3);
+	AddView(RUNTIME_CLASS(CAntexSourceView), "SRC", 4);
 
 	m_pPcvView = (CAntexPcvView*)m_wndTabs.GetTabWnd(0);
 	m_pPcoView = (CPcoView*)m_wndTabs.GetTabWnd(1);
-	m_pSrcView = (CAntexSourceView*)m_wndTabs.GetTabWnd(2);
+	m_pPcoTableView = (CPcoTableView*)m_wndTabs.GetTabWnd(2);
+	m_pSrcView = (CAntexSourceView*)m_wndTabs.GetTabWnd(3);
 
 	return 0;
 }

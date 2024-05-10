@@ -34,20 +34,20 @@
 //
 #pragma once
 
-#include "Plot2d.h"
+//#include "Plot2d.h"
 
 class CCan2Doc;
 
-class CPcoView : public CFormView
+class CPcoTableView : public CFormView
 {
-	DECLARE_DYNCREATE(CPcoView)
+	DECLARE_DYNCREATE(CPcoTableView)
 
 protected:
-	CPcoView();           // protected constructor used by dynamic creation
-	virtual ~CPcoView();
+	CPcoTableView();           // protected constructor used by dynamic creation
+	virtual ~CPcoTableView();
 
 public:
-	enum { IDD = IDD_ANTEX_VPCO };
+	enum { IDD = IDD_ANTEX_PCO_TABLE };
 #ifdef _DEBUG
 	virtual void AssertValid() const;
 #ifndef _WIN32_WCE
@@ -56,10 +56,11 @@ public:
 #endif
 	bool m_bNeedInit;
 	CRect m_rCrt;
-	can2::Plot2d m_wndPlot;
 	double m_eleMask;
 	CFont m_font;
+	CListCtrl m_lstPco;
 	int m_nOffsetMode;
+	static std::string c_strFile;
 
 	CCan2Doc* GetDocument() const;
 	void updateCurves();
@@ -69,15 +70,12 @@ protected:
 
 	DECLARE_MESSAGE_MAP()
 public:
-	int m_nCoord;
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	virtual void OnInitialUpdate();
-	afx_msg void OnClickedRadioEast();
-	afx_msg void OnRadioNorth();
-	afx_msg void OnRadioUp();
 	afx_msg void OnChangeEditEleMask();
 	afx_msg void OnClickedRadioMode();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 
+	afx_msg void OnBnClickedButtonExport();
 };
 

@@ -94,6 +94,7 @@
 #define IDD_DIALOGBAR_RING              316
 #define IDD_RING_PCO                    317
 #define IDD_RING_DIF                    318
+#define IDD_ANTEX_PCO_TABLE             319
 #define IDC_COMBO_SIGNAL                1000
 #define IDC_EDIT_MIN                    1001
 #define IDC_EDIT_MAX                    1002
@@ -112,8 +113,14 @@
 #define IDC_CHECK_SIMPLE                1009
 #define IDC_CHECK_POLAR                 1010
 #define IDC_CUSTOM_PLOT                 1011
+#define IDC_LIST_PCO                    1011
 #define IDC_CHECK_0GRID                 1012
+#define IDC_RADIO_SIN_AND_COS           1012
 #define IDC_CHECK_RAINBOW               1013
+#define IDC_RADIO_ONLY_COS              1013
+#define IDC_RADIO_NO_WEIGHT             1014
+#define IDC_BUTTON1                     1015
+#define IDC_BUTTON_EXPORT               1015
 #define IDC_BUTTON_SAVE                 1071
 #define IDC_BUTTON_LOAD                 1072
 #define IDC_EDIT_ELE_MASK               1101
@@ -167,7 +174,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        316
 #define _APS_NEXT_COMMAND_VALUE         32781
-#define _APS_NEXT_CONTROL_VALUE         1011
+#define _APS_NEXT_CONTROL_VALUE         1016
 #define _APS_NEXT_SYMED_VALUE           310
 #endif
 #endif

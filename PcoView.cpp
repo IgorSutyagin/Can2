@@ -55,6 +55,7 @@ CPcoView::CPcoView()
 {
 	m_bNeedInit = true;
 	m_eleMask = 0.0;
+	m_nOffsetMode = can2::AntexAntenna::eSinAndCos;
 }
 
 CPcoView::~CPcoView()
@@ -68,6 +69,7 @@ void CPcoView::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_CUSTOM_PLOT, m_wndPlot);
 	DDX_Radio(pDX, IDC_RADIO_EAST, m_nCoord);
 	DDX_Text(pDX, IDC_EDIT_ELE_MASK, m_eleMask);
+	DDX_Radio(pDX, IDC_RADIO_NO_WEIGHT, m_nOffsetMode);
 }
 
 BEGIN_MESSAGE_MAP(CPcoView, CFormView)
@@ -76,6 +78,9 @@ BEGIN_MESSAGE_MAP(CPcoView, CFormView)
 	ON_COMMAND(IDC_RADIO_NORTH, &CPcoView::OnRadioNorth)
 	ON_COMMAND(IDC_RADIO_UP, &CPcoView::OnRadioUp)
 	ON_BN_CLICKED(IDC_RADIO_HPCO, &CPcoView::OnClickedRadioEast)
+	ON_BN_CLICKED(IDC_RADIO_NO_WEIGHT, &CPcoView::OnClickedRadioMode)
+	ON_BN_CLICKED(IDC_RADIO_SIN_AND_COS, &CPcoView::OnClickedRadioMode)
+	ON_BN_CLICKED(IDC_RADIO_ONLY_COS, &CPcoView::OnClickedRadioMode)
 	ON_EN_CHANGE(IDC_EDIT_ELE_MASK, &CPcoView::OnChangeEditEleMask)
 	ON_WM_TIMER()
 END_MESSAGE_MAP()
@@ -168,7 +173,7 @@ void CPcoView::OnInitialUpdate()
 	m_wndPlot.setLegendFont(&m_font);
 	m_wndPlot.setMenuIDs(IDR_POPUP, 0, NULL);
 
-		updateCurves();
+	updateCurves();
 }
 
 void CPcoView::updateCurves()
@@ -199,8 +204,8 @@ void CPcoView::updateCurves()
 	can2::Point3d ptMax(-DBL_MAX, -DBL_MAX, -DBL_MAX);
 	can2::Point3d ptMin(DBL_MAX, DBL_MAX, DBL_MAX);
 
-	std::vector<can2::Point2d> pts;
-	std::vector<can2::Point3d> ptHs;
+	std::vector<can2::Point2d> pts[2]; // [0] - Computed PCOs <freq, [u,e,n]>, [1] - PCOs from the ANTEX file  <freq, [u,e,n]>
+	std::vector<can2::Point3d> ptHs[2]; // [0] - Computed HPCO <freq, e, n>, [1] - HPCO from the ANTEX file <freq, e, n>
 
 	for (int nf = can2::Gnss::G01; nf < can2::Gnss::esigInvalid; nf++)
 	{
@@ -209,48 +214,60 @@ void CPcoView::updateCurves()
 		if (!aa->hasPcc(es))
 			continue;
 
-		int sys = 0;
-		int slot = 0;
-
-		can2::Point3d off = aa->calcOffset(es, m_eleMask, can2::Node::eSinAndCos, nullptr);
-		if (!off.isValid())
-			continue;
-		off *= 1000;
-		if (m_nCoord <= 2)
-			pts.push_back(can2::Point2d(can2::Gnss::getSysFreq(es) / 1000000.0, off[m_nCoord]));
-		else
-			ptHs.push_back(can2::Point3d(can2::Gnss::getSysFreq(es) / 1000000.0, off.e, off.n));
-
-		for (int i = 0; i < 3; i++)
+		for (int i=0; i<2; i++)
 		{
-			if (off[i] < ptMin[i])
-				ptMin[i] = off[i];
-			if (off[i] > ptMax[i])
-				ptMax[i] = off[i];
+			can2::Point3d off = i == 0 ? aa->calcOffset(es, m_eleMask, (can2::Node::OffsetMode)m_nOffsetMode, nullptr)
+				: aa->getOffset(es);
+			if (!off.isValid())
+				continue;
+			off *= 1000;
+			if (m_nCoord <= 2)
+				pts[i].push_back(can2::Point2d(can2::Gnss::getSysFreq(es) / 1000000.0, off[m_nCoord]));
+			else
+				ptHs[i].push_back(can2::Point3d(can2::Gnss::getSysFreq(es) / 1000000.0, off.e, off.n));
+
+			for (int i = 0; i < 3; i++)
+			{
+				if (off[i] < ptMin[i])
+					ptMin[i] = off[i];
+				if (off[i] > ptMax[i])
+					ptMax[i] = off[i];
+			}
 		}
+
 	}
 
 	if (m_nCoord <= 2)
 	{
-		std::sort(pts.begin(), pts.end(), [](const can2::Point2d& a, const can2::Point2d& b) {
-			return a.x < b.x;
-		});
+		for (int i = 0; i < 2; i++)
+		{
+			std::sort(pts[i].begin(), pts[i].end(), [](const can2::Point2d& a, const can2::Point2d& b) {
+				return a.x < b.x;
+			});
+		}
 	}
 	else
 	{
-		std::sort(ptHs.begin(), ptHs.end(), [](const can2::Point3d& a, const can2::Point3d& b) {
-			return a.x < b.x;
-		});
-		pts.resize(ptHs.size());
-		for (int i = 0; i < (int)ptHs.size(); i++)
-			pts[i] = can2::Point2d(ptHs[i].y, ptHs[i].z);
+		for (int i = 0; i < 2; i++)
+		{
+			std::sort(ptHs[i].begin(), ptHs[i].end(), [](const can2::Point3d& a, const can2::Point3d& b) {
+				return a.x < b.x;
+			});
+			pts[i].resize(ptHs[i].size());
+			for (int j = 0; j < (int)ptHs[i].size(); j++)
+				pts[i][j] = can2::Point2d(ptHs[i][j].y, ptHs[i][j].z);
+		}
 	}
 
-	m_wndPlot.addCurve(1, aa->getName().c_str(), pts, 2, can2::Curve2d::eLineAndPoints, clrs[0]);
+	for (int i = 0; i < 2; i++)
+	{
+		std::string str = i == 0 ? "Computed" : "From ANTEX file";
+		m_wndPlot.addCurve(i+1, str.c_str(), pts[i], 2, can2::Curve2d::eLineAndPoints, clrs[i]);
 
-	can2::Curve2d* pCurve = m_wndPlot.getCurve(1);
-	if (pCurve != nullptr)
-		pCurve->m_bDirection = m_nCoord > 2;
+		can2::Curve2d* pCurve = m_wndPlot.getCurve(i+1);
+		if (pCurve != nullptr)
+			pCurve->m_bDirection = m_nCoord > 2;
+	}
 
 	if (m_nCoord <= 2)
 	{
@@ -275,12 +292,15 @@ void CPcoView::updateCurves()
 		if (sigSel != can2::Gnss::esigInvalid)
 		{
 			double fsel = can2::Gnss::getSysFreq(sigSel) / 1000000.0;
-			std::vector<can2::Point3d>::iterator it = std::find_if(ptHs.begin(), ptHs.end(), [&](const can2::Point3d& pt) {
-				return pt.x == fsel;
-			});
-			if (it != ptHs.end())
+			for (int i = 0; i < 2; i++)
 			{
-				m_wndPlot.addCircle(10, it->y, it->z, 0.1, RGB(255, 0, 0), 2);
+				std::vector<can2::Point3d>::iterator it = std::find_if(ptHs[i].begin(), ptHs[i].end(), [&](const can2::Point3d& pt) {
+					return pt.x == fsel;
+				});
+				if (it != ptHs[i].end())
+				{
+					m_wndPlot.addCircle(10+i, it->y, it->z, 0.1, RGB(255, 0, 0), 2);
+				}
 			}
 		}
 	}
@@ -312,6 +332,12 @@ void CPcoView::OnChangeEditEleMask()
 {
 	SetTimer(1, 1, NULL);
 }
+
+void CPcoView::OnClickedRadioMode()
+{
+	SetTimer(1, 1, NULL);
+}
+
 
 
 void CPcoView::OnTimer(UINT_PTR nIDEvent)
