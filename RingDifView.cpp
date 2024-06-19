@@ -67,6 +67,7 @@ CRingDifView::CRingDifView()
 	, m_bxAuto(TRUE)
 	, m_yDivs(10)
 	, m_xDivs(10)
+	, m_bClusterSpread (FALSE)
 {
 	m_bNeedInit = true;
 	m_nRingOffsetMode = can2::AntexAntenna::eSinAndCos;
@@ -95,11 +96,13 @@ void CRingDifView::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_CHECK_X_AUTO, m_bxAuto);
 	DDX_Text(pDX, IDC_EDIT_Y_DIVS, m_yDivs);
 	DDX_Text(pDX, IDC_EDIT_X_DIVS, m_xDivs);
+	DDX_Check(pDX, IDC_CHECK_CLUSTER_SPREAD, m_bClusterSpread);
 }
 
 BEGIN_MESSAGE_MAP(CRingDifView, CFormView)
 	ON_WM_SIZE()
 	ON_BN_CLICKED(IDC_CHECK_SIMPLE, &CRingDifView::OnClickedRadioOffsetMode)
+	ON_BN_CLICKED(IDC_CHECK_CLUSTER_SPREAD, &CRingDifView::OnClickedRadioOffsetMode)
 	ON_BN_CLICKED(IDC_RADIO_NOWEIGHT, &CRingDifView::OnClickedRadioOffsetMode)
 	ON_BN_CLICKED(IDC_RADIO_ONE, &CRingDifView::OnClickedRadioOffsetMode)
 	ON_BN_CLICKED(IDC_RADIO_SINANDCOS, &CRingDifView::OnClickedRadioOffsetMode)
@@ -188,6 +191,12 @@ void CRingDifView::enableControls()
 	m_wndPlot.autoScale(m_bxAuto, m_byAuto, TRUE);
 
 	//m_cmbDataType.ShowWindow(m_bShowDataType ? SW_SHOW : SW_HIDE);
+
+	//CRingDoc* pDoc = GetDocument();
+	//CRingBar* pBar = getRingBar();
+	//can2::RingNode* prn = pDoc->m_rn;
+	//bool bCluster = prn->hasCluster();
+	//GetDlgItem(IDC_CHECK_CLUSTER_SPREAD)->EnableWindow(bCluster);
 
 	UpdateData(FALSE);
 }
@@ -391,6 +400,13 @@ void CRingDifView::updateCurves()
 		return;
 
 	UpdateData(TRUE);
+
+	if (m_bClusterSpread)
+	{
+		updateSpreadCurves();
+		return;
+	}
+
 	CRingDoc* pDoc = GetDocument();
 	CRingBar* pBar = getRingBar();
 	can2::RingNode* prn = pDoc->m_rn;
@@ -422,7 +438,7 @@ void CRingDifView::updateCurves()
 				const can2::RingNode::Cluster& cls1 = prn->m_cls[nc1];
 				can2::AntexAntenna* pa1 = cls1.atm.get();
 
-				can2::AntexAntenna* padif = (can2::AntexAntenna *)pa1->subtract(pa0);
+				can2::AntexAntenna* padif = (can2::AntexAntenna*)pa1->subtract(pa0);
 
 				std::vector<can2::Point2d> pts;
 
@@ -434,18 +450,21 @@ void CRingDifView::updateCurves()
 						continue;
 
 					double d = padif->calcNorm(eft, prn->m_metrics.em, prn->m_metrics.bSimpleMode);
-					pts.push_back(can2::Point2d(can2::Gnss::getSysFreq(eft) / 1000000.0, d * 1000.0));
+					double f = can2::Gnss::getSysFreq(eft) / 1000000.0;
+					pts.push_back(can2::Point2d(f, d * 1000.0));
 				}
 
 				std::sort(pts.begin(), pts.end(), [](const can2::Point2d& a, const can2::Point2d& b) {
 					return a.x < b.x;
 				});
 
-				CString str;
-				str.Format("%s - %s", pa0->getName().c_str(), pa1->getName().c_str());
-				m_wndPlot.addCurve(nCurve + 1, str, pts, pBar->isSelected(nc0, nc1) ? 4 : 2, can2::Curve2d::eLineAndPoints, clrs[nCurve % 9]);
-				nCurve++;
-
+				if (!m_bClusterSpread)
+				{
+					CString str;
+					str.Format("%s - %s", pa0->getName().c_str(), pa1->getName().c_str());
+					m_wndPlot.addCurve(nCurve + 1, str, pts, pBar->isSelected(nc0, nc1) ? 4 : 2, can2::Curve2d::eLineAndPoints, clrs[nCurve % 9]);
+					nCurve++;
+				}
 				delete padif;
 			}
 		}
@@ -484,7 +503,7 @@ void CRingDifView::updateCurves()
 			{
 				const can2::RingNode::Cluster& cls1 = prn->m_cls[nc1];
 				can2::AntexAntenna* pa1 = cls1.atm.get();
-				std::map <can2::Gnss::Signal, can2::Point3d > & a1 = offs[nc1];
+				std::map <can2::Gnss::Signal, can2::Point3d >& a1 = offs[nc1];
 
 				std::vector<can2::Point2d> pts;
 
@@ -527,6 +546,230 @@ void CRingDifView::updateCurves()
 			m_wndPlot.setAxisTitle(FALSE, szTitles[m_nWhatToPlot - 1], FALSE);
 		else
 			m_wndPlot.setAxisTitle(FALSE, "PCO difference (mm)", FALSE);
+	}
+
+	for (int nb = 0; nb < can2::Gnss::ebMax; nb++)
+	{
+		double fmin, fmax;
+		can2::Gnss::getBand((can2::Gnss::Band)nb, fmin, fmax);
+		m_wndPlot.addArea(nb + 1, fmin / 1000000, fmax / 1000000, can2::Gnss::getBandColor(nb), can2::Gnss::getBandName(nb));
+	}
+
+	m_wndPlot.setInitArea();
+	m_wndPlot.Invalidate();
+	m_wndPlot.UpdateWindow();
+}
+
+void getClusterSpread(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, const can2::RingNode::Metrics& m, std::map<double, can2::Point2d>& mapSpread)
+{
+	if (nWhatToPlot == 0)
+	{
+		for (int nc0 = 0; nc0 < (int)ras.size(); nc0++)
+		{
+			const can2::RingAntenna * pa0 = ras[nc0];
+			for (int nc1 = nc0 + 1; nc1 < (int)ras.size(); nc1++)
+			{
+				can2::RingAntenna* pa1 = ras[nc1];
+
+				can2::AntexAntenna* padif = (can2::AntexAntenna*)pa1->subtract(pa0);
+
+				for (int nf = can2::Gnss::G01; nf < can2::Gnss::esigInvalid; nf++)
+				{
+					can2::Gnss::Signal eft = (can2::Gnss::Signal)nf;
+
+					if (!padif->hasPcc(eft))
+						continue;
+
+					double d = padif->calcNorm(eft, m.em, m.bSimpleMode);
+					double f = can2::Gnss::getSysFreq(eft) / 1000000.0;
+					if (mapSpread.find(f) != mapSpread.end())
+					{
+						if (mapSpread[f].x > d * 1000)
+							mapSpread[f].x = d * 1000;
+						if (mapSpread[f].y < d * 1000)
+							mapSpread[f].y = d * 1000;
+					}
+					else
+					{
+						mapSpread[f] = can2::Point2d(d * 1000, d * 1000);
+					}
+				}
+
+				delete padif;
+			}
+		}
+	}
+	else
+	{
+		std::vector<std::map<can2::Gnss::Signal, can2::Point3d>> offs;
+		for (int nc = 0; nc < (int)ras.size(); nc++)
+		{
+			can2::RingAntenna* pa = ras[nc];
+
+			std::map<can2::Gnss::Signal, can2::Point3d> antOffs;
+			for (int nf = can2::Gnss::G01; nf < can2::Gnss::esigInvalid; nf++)
+			{
+				can2::Gnss::Signal eft = (can2::Gnss::Signal)nf;
+
+				if (!pa->hasPcc(eft))
+					continue;
+
+				can2::Point3d off = pa->calcOffset(eft, 0.0, m.em);
+				if (!off.isValid())
+					continue;
+				antOffs[eft] = off;
+			}
+			offs.push_back(antOffs);
+		}
+
+		for (int nc0 = 0; nc0 < (int)ras.size(); nc0++)
+		{
+			can2::RingAntenna* pa0 = ras[nc0];
+			std::map<can2::Gnss::Signal, can2::Point3d>& a0 = offs[nc0];
+			for (int nc1 = nc0 + 1; nc1 < (int)ras.size(); nc1++)
+			{
+				can2::RingAntenna* pa1 = ras[nc1];
+				std::map <can2::Gnss::Signal, can2::Point3d >& a1 = offs[nc1];
+
+				for (int nf = can2::Gnss::G01; nf < can2::Gnss::esigInvalid; nf++)
+				{
+					can2::Gnss::Signal eft = (can2::Gnss::Signal)nf;
+
+					if (a0.find(eft) == a0.end() || a1.find(eft) == a1.end())
+						continue;
+
+					can2::Point3d off0 = a0[eft];
+					can2::Point3d off1 = a1[eft];
+					double val = 0;
+					if (nWhatToPlot == 1)
+						val = can2::Point3d(off0 - off1).rad();
+					else if (nWhatToPlot == 2)
+						val = (off0.z - off1.z);
+					else if (nWhatToPlot == 3)
+						val = sqrt((off0.x - off1.x) * (off0.x - off1.x) + (off0.y - off1.y) * (off0.y - off1.y));
+					else if (nWhatToPlot == 4)
+						val = off0.x - off1.x;
+					else if (nWhatToPlot == 5)
+						val = off0.y - off1.y;
+					val *= 1000;
+					double f = can2::Gnss::getSysFreq(eft) / 1000000.0;
+					if (mapSpread.find(f) != mapSpread.end())
+					{
+						if (mapSpread[f].x > val)
+							mapSpread[f].x = val;
+						if (mapSpread[f].y < val)
+							mapSpread[f].y = val;
+					}
+					else
+					{
+						mapSpread[f] = can2::Point2d(val, val);
+					}
+				}
+			}
+		}
+	}
+}
+
+void CRingDifView::updateSpreadCurves()
+{
+	CRingDoc* pDoc = GetDocument();
+	CRingBar* pBar = getRingBar();
+	can2::RingNode* prn = pDoc->m_rn;
+	std::map<double, can2::Point2d> mapSpread; // Frequency to (min,max) spread map
+	bool bHasCluster = prn->hasCluster();
+
+
+	COLORREF clrs[9] = { RGB(255, 0, 0), RGB(0, 200, 0), RGB(0, 0, 255),
+		RGB(200, 0, 200), RGB(125, 125, 0), RGB(0, 200, 200),
+		RGB(120, 0, 0), RGB(0, 120, 0), RGB(0, 0, 120) };
+
+	m_wndPlot.removeAllCurves();
+	m_wndPlot.setAxisTitle(TRUE, "Frequency (MHz)", FALSE);
+	m_wndPlot.resetInitArea();
+
+	int nCurve = 0;
+
+	bool bSimpleMode = m_bSimpleMode ? true : false;
+	prn->m_metrics.bSimpleMode = bSimpleMode;
+	can2::AntexAntenna::OffsetMode em = m_nRingOffsetMode == 0 ? can2::AntexAntenna::eNoWeight :
+		m_nRingOffsetMode == can2::AntexAntenna::eOnlyCos ? can2::AntexAntenna::eOnlyCos : can2::AntexAntenna::eSinAndCos;
+	prn->m_metrics.em = em;
+
+	CCan2App* pApp = getCan2App();
+	int nWidth = 1; // (int)ceil(pApp->m_sp.pixInPoint * 3);
+
+	if (bHasCluster)
+	{
+		for (int nc = 0; nc < (int)prn->m_cls.size(); nc++)
+		{
+			can2::RingNode::Cluster& c = prn->m_cls[nc];
+			if (c.ants.size() < 2)
+				continue;
+
+			std::map<double, can2::Point2d> mapSpread;
+			std::vector <can2::RingAntenna*> ras;
+			for (int i = 0; i < (int)c.ants.size(); i++)
+			{
+				ras.push_back(c.ants[i].get());
+			}
+			getClusterSpread(ras, m_nWhatToPlot, prn->m_metrics, mapSpread);
+
+			std::vector <can2::Point2d> pts;
+			std::vector <can2::Point2d> ptMinMax;
+
+			for (auto it = mapSpread.begin(); it != mapSpread.end(); it++)
+			{
+				double f = it->first;
+				can2::Point2d minMax = it->second;
+				pts.push_back(can2::Point2d(f, (minMax.x + minMax.y) / 2));
+				ptMinMax.push_back(minMax);
+			}
+
+			m_wndPlot.addBand(nCurve + 1, c.atm->getName().c_str(), pts, ptMinMax, nWidth, clrs[nCurve]);
+		}
+	}
+	else
+	{
+		std::map<double, can2::Point2d> mapSpread;
+		std::vector <can2::RingAntenna*> ras;
+		for (int i = 0; i < (int)prn->m_cls.size(); i++)
+		{
+			ras.push_back(prn->m_cls[i].atm.get());
+		}
+		getClusterSpread(ras, m_nWhatToPlot, prn->m_metrics, mapSpread);
+
+		std::vector <can2::Point2d> pts;
+		std::vector <can2::Point2d> ptMinMax;
+
+		for (auto it = mapSpread.begin(); it != mapSpread.end(); it++)
+		{
+			double f = it->first;
+			can2::Point2d minMax = it->second;
+			pts.push_back(can2::Point2d(f, (minMax.x + minMax.y) / 2));
+			ptMinMax.push_back(minMax);
+		}
+
+		m_wndPlot.addBand(nCurve + 1, "", pts, ptMinMax, nWidth, clrs[nCurve]);
+	}
+
+	if (m_nWhatToPlot == 0)
+	{
+		m_wndPlot.setAxisTitle(FALSE, "Delta PCC scalar metrics (mm)", FALSE);
+	}
+	else
+	{
+		const char* szTitles[5] = { "PCO difference (mm)", "VPCO difference (mm)", "HPCO difference (mm)", "PCO East difference (mm)", "PCO North difference (mm)" };
+		if (0 < m_nWhatToPlot && m_nWhatToPlot < 5)
+			m_wndPlot.setAxisTitle(FALSE, szTitles[m_nWhatToPlot - 1], FALSE);
+		else
+			m_wndPlot.setAxisTitle(FALSE, "PCO difference (mm)", FALSE);
+	}
+
+	for (int nb = 0; nb < can2::Gnss::ebMax; nb++)
+	{
+		double fmin, fmax;
+		can2::Gnss::getBand((can2::Gnss::Band)nb, fmin, fmax);
+		m_wndPlot.addArea(nb + 1, fmin / 1000000, fmax / 1000000, can2::Gnss::getBandColor(nb), can2::Gnss::getBandName(nb));
 	}
 
 	m_wndPlot.setInitArea();

@@ -58,6 +58,8 @@ public:
 
 	CComboBox m_cmbCluster;
 	can2::RingDistCtrl m_wndDists;
+	int m_nMeanType;
+	int m_nUseSignal;
 
 	static int c_nSigIDCs[can2::Gnss::esigInvalid];
 
@@ -75,4 +77,6 @@ public:
 	afx_msg void OnSelchangeComboClust();
 	afx_msg void OnSelchangeRingDist(NMHDR* pnmhdr, LRESULT* result);
 	afx_msg void OnCheckSlot();
+	afx_msg void OnBnClickedButtonManualCluster();
+	afx_msg void OnUpdateButtonManualCluster(CCmdUI* pCmdUI);
 };

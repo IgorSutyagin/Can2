@@ -43,6 +43,16 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CRingPcvCtrl implementation
 
+/////////////////////////////
+// Operations:
+void CRingPcvCtrl::onSignalChanged()
+{
+	can2::Gnss::Signal es = getSignal();
+	can2::Node* node = getNode();
+	double ro = 0;
+	m_ptPco = node->calcOffset(es, 0, can2::Node::eSinAndCos, &ro);
+}
+
 ///////////////////////////////
 // Overrides
 can2::OglSurface::Grid CRingPcvCtrl::getGrid() const
@@ -84,13 +94,22 @@ can2::Gnss::Signal CRingPcvCtrl::getSignal() const
 
 double CRingPcvCtrl::getData(const can2::Node* node, can2::Gnss::Signal es, double x, double y) const
 {
-	return node->getPcv(es, y, x) * 1000;
+	double pcc = node->getPcc(es, y, x);
+	double pco = can2::ZenAz(y, x).dirCos() * m_ptPco;
+	double pcod = node->getOffset(es).z - m_ptPco.z;
+	return (pcc - pco - pcod) * 1000; // node->getPcv(es, y, x) * 1000;
 }
 
 void CRingPcvCtrl::onViewChanged()
 {
 	can2::Plot3d::onViewChanged();
 	m_pView->onViewChanged();
+}
+
+void CRingPcvCtrl::updateData()
+{
+	onSignalChanged();
+	can2::Plot3d::updateData();
 }
 
 // End of CRingPcvCtrl implementation
@@ -353,7 +372,9 @@ void CRingPcvView::OnInitialUpdate()
 
 	UpdateData(FALSE);
 
+	m_wndPlot.onSignalChanged();
 	m_wndPlot.onInitialUpdate();
+
 
 	//updateCurves();
 }
@@ -364,6 +385,7 @@ void CRingPcvView::OnTimer(UINT_PTR nIDEvent)
 	{
 		KillTimer(nIDEvent);
 		UpdateData(TRUE);
+		m_wndPlot.onSignalChanged();
 		m_wndPlot.updateData();
 	}
 	else if (nIDEvent == 2) // ISO

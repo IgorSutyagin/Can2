@@ -65,6 +65,22 @@ namespace can2
 		};
 		Plot3dSettings plot3d[ep3Max];
 
+		enum Plot2dType
+		{
+			ep2PcoEast = 0,
+			ep2PcoNorth = 1,
+			ep2PcoUp = 2,
+			ep2PcoHor = 3,
+			ep2Max
+		};
+
+		struct Plot2dSettings
+		{
+			std::string title;
+			void serialize(Archive& ar);
+		};
+		Plot2dSettings plot2d[ep2Max];
+
 		void savePlot3d(const Node* node, const Plot3d * plot);
 		void loadPlot3d(const Node* node, Plot3d* plot) const;
 

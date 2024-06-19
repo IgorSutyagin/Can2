@@ -35,6 +35,7 @@
 #include "pch.h"
 
 #include "RingNode.h"
+#include "Sph.h"
 
 using namespace can2;
 
@@ -139,7 +140,7 @@ double RingNode::norm(const AntexAntenna& a, Metrics& metrics)
 	return sqrt(sumSigma / countSigma);
 }
 
-void RingNode::clusterize(int level)
+void RingNode::clusterize(int level, ClusterMode cm)
 {
 	// Set 0 clustering level
 	m_cls.clear();
@@ -166,7 +167,8 @@ void RingNode::clusterize(int level)
 
 		Cluster& c1 = m_cls[m];
 		Cluster& c2 = m_cls[n];
-		Cluster c = unite(c1, c2);
+		//Cluster c = unite(c1, c2);
+		Cluster c = (cm.meanType == ClusterMode::Arithmetic) ? unite(cm, c1, &c2) : uniteSh(cm, c1, &c2);
 
 		m_cls[m] = c;
 		m_cls.erase(m_cls.begin() + n);
@@ -174,11 +176,62 @@ void RingNode::clusterize(int level)
 	}
 }
 
-RingNode::Cluster RingNode::unite(const Cluster& c1, const Cluster& c2)
+void RingNode::clusterizeManual(std::vector<std::vector<RingAntenna*>>& cls, ClusterMode cm)
+{
+	m_cls.clear();
+	m_dists.clear();
+
+	for (int nc = 0; nc < (int)cls.size(); nc++)
+	{
+		std::vector<RingAntenna*>& as = cls[nc];
+
+		if (as.size() == 0)
+			continue;
+		else if (as.size() == 1)
+		{
+			std::vector<std::shared_ptr<RingAntenna>>::iterator it = std::find_if(m_ants.begin(), m_ants.end(), [&](const std::shared_ptr<RingAntenna>& a) {
+				return as[0] == a.get();
+			});
+			if (it != m_ants.end())
+			{
+				Cluster c;
+				c.ants.push_back(*it);
+				c.atm = *it;
+				m_cls.push_back(c);
+			}
+
+		}
+		else
+		{
+			Cluster c;
+			for (int i = 0; i < (int)as.size(); i++)
+			{
+				std::vector<std::shared_ptr<RingAntenna>>::iterator it = std::find_if(m_ants.begin(), m_ants.end(), [&](const std::shared_ptr<RingAntenna>& a) {
+					return as[i] == a.get();
+				});
+				if (it != m_ants.end())
+				{
+					c.ants.push_back(*it);
+				}
+			}
+
+			if (cm.meanType == ClusterMode::Arithmetic)
+				m_cls.push_back(unite(cm, c));
+			else
+				m_cls.push_back(uniteSh(cm, c));
+		}
+	}
+	compDists();
+}
+
+RingNode::Cluster RingNode::unite(ClusterMode cm, const Cluster& c1, const Cluster * pc2)
 {
 	Cluster c;
 	c.atm = std::shared_ptr<RingAntenna>(new RingAntenna());
 	std::map<Gnss::Signal, AntexAntenna::SignalData> fsigs;
+	int useSigs[Gnss::esigInvalid];
+	for (int i = 0; i < Gnss::esigInvalid; i++)
+		useSigs[i] = 0;
 
 	std::map<int, double> freqs;
 	for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = c1.ants.begin(); it != c1.ants.end(); it++)
@@ -190,10 +243,26 @@ RingNode::Cluster RingNode::unite(const Cluster& c1, const Cluster& c2)
 			c.atm->m_grid = a.m_grid;
 			c.atm->m_sigs = a.m_sigs;
 		}
+
+		RingAntenna& ra = **it;
+		for (auto it = ra.m_sigs.begin(); it != ra.m_sigs.end(); it++)
+		{
+			useSigs[it->first]++;
+		}
 	}
-	for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = c2.ants.begin(); it != c2.ants.end(); it++)
+
+	if (pc2 != nullptr)
 	{
-		c.ants.push_back(*it);
+		for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = pc2->ants.begin(); it != pc2->ants.end(); it++)
+		{
+			c.ants.push_back(*it);
+
+			RingAntenna& ra = **it;
+			for (auto it = ra.m_sigs.begin(); it != ra.m_sigs.end(); it++)
+			{
+				useSigs[it->first]++;
+			}
+		}
 	}
 
 
@@ -215,6 +284,13 @@ RingNode::Cluster RingNode::unite(const Cluster& c1, const Cluster& c2)
 		for (int nf = 0; nf < Gnss::esigInvalid; nf++)
 		{
 			Gnss::Signal eft = (Gnss::Signal)nf;
+			if (useSigs[eft] == 0)
+				continue;
+			if (useSigs[eft] < 2 && cm.useSignal >= ClusterMode::AtLeast2)
+				continue;
+			if (useSigs[eft] != c.ants.size() && cm.useSignal == ClusterMode::OnlyCommon)
+				continue;
+
 			if (sigs.find(eft) != sigs.end())
 			{
 				Point3d pcoa = a.getOffset(eft);
@@ -229,26 +305,71 @@ RingNode::Cluster RingNode::unite(const Cluster& c1, const Cluster& c2)
 					// NoAzi pcvs
 					std::vector<double>& noaPcvs = fsigs[eft].naPcv;
 					if (noaPcvs.size() != sigA.naPcv.size())
-						AfxThrowUserException();
-					for (int i = 0; i < (int)noaPcvs.size(); i++)
 					{
-						noaPcvs[i] = (noaPcvs[i] * freqs[eft] + sigA.naPcv[i]) / (freqs[eft] + 1);
+						for (int nz = 0; nz < c.atm->m_grid.nz; nz++)
+						{
+							double zen = c.atm->m_grid.za0.zen + c.atm->m_grid.step.zen * nz;
+							noaPcvs[nz] = (noaPcvs[nz] * freqs[eft] + sigA.getPcv(zen)) / (freqs[eft] + 1);
+						}
+					}
+					else
+					{
+						for (int i = 0; i < (int)noaPcvs.size(); i++)
+						{
+							noaPcvs[i] = (noaPcvs[i] * freqs[eft] + sigA.naPcv[i]) / (freqs[eft] + 1);
+						}
 					}
 
 					// Azimuth dependent PCVs
 					std::vector<double>& pcvs = fsigs[eft].aPcv;
 					if (pcvs.size() != sigA.aPcv.size())
-						AfxThrowUserException();
-					for (int i= 0; i<(int)pcvs.size(); i++)
 					{
-						pcvs[i] = (pcvs[i] * freqs[eft] + sigA.aPcv[i]) / (freqs[eft] + 1);
+						for (int na = 0; na < c.atm->m_grid.na; na++)
+						{
+							double az = c.atm->m_grid.za0.az + c.atm->m_grid.step.az * na;
+							for (int nz = 0; nz < c.atm->m_grid.nz; nz++)
+							{
+								double zen = c.atm->m_grid.za0.zen + c.atm->m_grid.step.zen * nz;
+								fsigs[eft].pcv(nz, na) = (fsigs[eft].pcv(nz, na) * freqs[eft] + sigA.getPcv(zen, az)) / (freqs[eft] + 1);
+							}
+						}
+					}
+					else
+					{
+						for (int i = 0; i < (int)pcvs.size(); i++)
+						{
+							pcvs[i] = (pcvs[i] * freqs[eft] + sigA.aPcv[i]) / (freqs[eft] + 1);
+						}
 					}
 
 					freqs[eft] += 1.0;
 				}
 				else
 				{
-					fsigs[eft] = sigA;
+					if (c.atm->m_grid == a.m_grid)
+					{
+						fsigs[eft] = sigA;
+					}
+					else
+					{
+						fsigs[eft] = AntexAntenna::SignalData(eft, c.atm.get(), Point3d(0, 0, 0));
+						AntexAntenna::SignalData& sig = fsigs[eft];
+						sig.pco = sigA.pco;
+						for (int nz = 0; nz < c.atm->m_grid.nz; nz++)
+						{
+							double zen = c.atm->m_grid.za0.zen + c.atm->m_grid.step.zen * nz;
+							sig.naPcv[nz] = sigA.getPcv(zen);
+						}
+						for (int na = 0; na < c.atm->m_grid.na; na++)
+						{
+							double az = c.atm->m_grid.za0.az + c.atm->m_grid.step.az * na;
+							for (int nz = 0; nz < c.atm->m_grid.nz; nz++)
+							{
+								double zen = c.atm->m_grid.za0.zen + c.atm->m_grid.step.zen * nz;
+								sig.pcv(nz, na) = sigA.getPcv(zen, az);
+							}
+						}
+					}
 					freqs[eft] = 1.0;
 				}
 			}
@@ -259,10 +380,295 @@ RingNode::Cluster RingNode::unite(const Cluster& c1, const Cluster& c2)
 	return c;
 }
 
+RingNode::Cluster RingNode::uniteSh(ClusterMode cm, const Cluster& c1, const Cluster * pc2)
+{
+	Cluster c;
+	c.atm = std::shared_ptr<RingAntenna>(new RingAntenna());
+	std::map<Gnss::Signal, AntexAntenna::SignalData> fsigs;
+	int useSigs[Gnss::esigInvalid];
+	for (int i = 0; i < Gnss::esigInvalid; i++)
+		useSigs[i] = 0;
+
+	std::map<int, double> freqs;
+	const AntexAntenna* paFirst = nullptr;
+	for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = c1.ants.begin(); it != c1.ants.end(); it++)
+	{
+		c.ants.push_back(*it);
+		if (it == c1.ants.begin())
+		{
+			const AntexAntenna& a = **it;
+			paFirst = &a;
+			c.atm->m_grid = a.m_grid;
+		}
+
+		RingAntenna& ra = **it;
+		for (auto it = ra.m_sigs.begin(); it != ra.m_sigs.end(); it++)
+		{
+			useSigs[it->first]++;
+		}
+	}
+	if (pc2 != nullptr)
+	{
+		for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = pc2->ants.begin(); it != pc2->ants.end(); it++)
+		{
+			c.ants.push_back(*it);
+
+			RingAntenna& ra = **it;
+			for (auto it = ra.m_sigs.begin(); it != ra.m_sigs.end(); it++)
+			{
+				useSigs[it->first]++;
+			}
+		}
+	}
+
+	ShFreqProjection shp[Gnss::ebMax];
+	//ShProjection shp[Gnss::ebMax];
+	for (int nb = 0; nb < Gnss::ebMax; nb++)
+	{
+		Gnss::Band eb = (Gnss::Band)nb;
+		//if (eb > 0)
+		//	continue;
+
+		// Setup bands properties
+		std::map<double, int> mapBandFreqs;
+		std::map<Gnss::Signal, int> mapBandSigs;
+		for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = c.ants.begin(); it != c.ants.end(); it++)
+		{
+			const RingAntenna& a = **it;
+			for (int nf = 0; nf < Gnss::esigInvalid; nf++)
+			{
+				Gnss::Signal eft = (Gnss::Signal)nf;
+				if (useSigs[eft] == 0)
+					continue;
+				if (useSigs[eft] < 2 && cm.useSignal >= ClusterMode::AtLeast2)
+					continue;
+				if (useSigs[eft] != c.ants.size() && cm.useSignal == ClusterMode::OnlyCommon)
+					continue;
+
+				if (a.m_sigs.find(eft) == a.m_sigs.end())
+					continue;
+				if (Gnss::getBand(eft) != eb)
+					continue;
+				double f = Gnss::getSysFreq(eft);
+				mapBandFreqs[f]++;
+				mapBandSigs[eft]++;
+			}
+		}
+
+		int nBandFreqs = mapBandFreqs.size();
+		if (nBandFreqs == 0)
+			continue;
+		else if (nBandFreqs == 1)
+			shp[nb].setBands(9, 9, 1, -80);
+			//shp[nb].setBands(9, 9, -90);
+		else
+			shp[nb].setBands(9, 9, 2, -80);
+			//shp[nb].setBands(9, 9, -90);
+
+		int nMatrixSize = shp[nb].getMatrixSize();
+
+		Matrix N;
+		N.resize(nMatrixSize, nMatrixSize);
+		N.init(0);
+		Vector U;
+		U.resize(nMatrixSize);
+		U.init(0);
+
+		//ShProjection shTest;
+		//shTest.setBands(5, 5, -90);
+		//shTest.m_coefs[4] = 1.0;
+		//shTest.m_coefs[6] = 2.0;
+		//shTest.m_coefs[8] = 3.0;
+
+		for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = c.ants.begin(); it != c.ants.end(); it++)
+		{
+			const RingAntenna& a = **it;
+			//if (it != c.ants.begin())
+			//	continue;
+
+			for (int nf = 0; nf < Gnss::esigInvalid; nf++)
+			{
+				Gnss::Signal eft = (Gnss::Signal)nf;
+				if (useSigs[eft] == 0)
+					continue;
+				if (useSigs[eft] < 2 && cm.useSignal >= ClusterMode::AtLeast2)
+					continue;
+				if (useSigs[eft] != c.ants.size() && cm.useSignal == ClusterMode::OnlyCommon)
+					continue;
+				if (a.m_sigs.find(eft) == a.m_sigs.end())
+					continue;
+				if (Gnss::getBand(eft) != eb)
+					continue;
+
+				double f = Gnss::getNormFreq(eb, eft);
+				for (int na = 0; na < a.m_grid.na - 1; na++)
+				{
+					double az = na * a.m_grid.step.az;
+					for (int nz = 0; nz < a.m_grid.nz; nz++)
+					{
+						double zen = nz * a.m_grid.step.zen;
+
+						double ph = a.getPcc(eft, zen, az);
+						//ph = shTest.pcc(ThetaPhi(ZenAz(zen, az)));
+						double w = sin(zen * PI / 180);
+						w = 1;
+						//shp[nb].appendEqs(ZenAz(zen, az), ph, w, N, U);
+						ZenAz za(zen, az);
+						shp[nb].appendEqs(za, f, ph, w, N, U);
+					}
+				}
+			}
+		}
+
+		N.copyUpperTriangle();
+
+		//N.fileDump("test.txt", U, "N", TRUE);
+		Vector X = N.solve(U);
+		shp[eb].setCoefs(X);
+
+		/*
+		for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = c.ants.begin(); it != c.ants.end(); it++)
+		{
+			const RingAntenna& a = **it;
+			if (it != c.ants.begin())
+				continue;
+
+			for (int nf = 0; nf < Gnss::esigInvalid; nf++)
+			{
+				Gnss::Signal eft = (Gnss::Signal)nf;
+				if (eft != Gnss::G01)
+					continue;
+				if (a.m_sigs.find(eft) == a.m_sigs.end())
+					continue;
+				if (Gnss::getBand(eft) != eb)
+					continue;
+
+				double f = Gnss::getNormFreq(eb, eft);
+				ShProjection s = shp[eb].getProjection(Gnss::getNormFreq(eb, f));
+				double az = 0;
+				std::vector<double> dif;
+				for (int nz = 0; nz < a.m_grid.nz; nz++)
+				{
+					double zen = nz * a.m_grid.step.zen;
+
+					double ph = a.getPcc(eft, zen, az);
+					double ph0 = s.pcc(ThetaPhi(ZenAz(zen, az)));
+					dif.push_back(ph - ph0);
+				}
+
+				Sleep(0);
+			}
+		}
+		*/
+
+
+		for (auto it = mapBandFreqs.begin(); it != mapBandFreqs.end(); it++)
+		{
+			double f = it->first;
+			ShProjection s = shp[eb].getProjection(Gnss::getNormFreq(eb, f));
+			Point3d pco = s.calcOffset(0, c.atm->m_grid.step);
+			for (auto it = mapBandSigs.begin(); it != mapBandSigs.end(); it++)
+			{
+				Gnss::Signal es = it->first;
+				if (useSigs[es] == 0)
+					continue;
+				if (useSigs[es] < 2 && cm.useSignal >= ClusterMode::AtLeast2)
+					continue;
+				if (useSigs[es] != c.ants.size() && cm.useSignal == ClusterMode::OnlyCommon)
+					continue;
+				if (Gnss::getSysFreq(es) != f)
+					continue;
+
+				if (c.atm->m_sigs.find(es) == c.atm->m_sigs.end())
+				{
+					c.atm->m_sigs[es] = AntexAntenna::SignalData(es, paFirst, Point3d(0, 0, 0));
+					c.atm->m_sigs[es].setGrid(c.atm->m_grid);
+				}
+				AntexAntenna::SignalData& sig = c.atm->m_sigs[es];
+				sig.pco = pco;
+				double fNorm = Gnss::getNormFreq(eb, es);
+				ShProjection sh = shp[eb].getProjection(fNorm);
+				double pcv0 = NAN;
+				for (int nz = 0; nz < c.atm->m_grid.nz; nz++)
+				{
+					double zen = c.atm->m_grid.za0.zen + c.atm->m_grid.step.zen * nz;
+					for (int na=0; na < c.atm->m_grid.na; na++)
+					{
+						double az = c.atm->m_grid.za0.az + c.atm->m_grid.step.az * na;
+						ThetaPhi tp(ZenAz(zen, az));
+						double pcv = sh.pcv(tp, pco);
+						if (isnan(pcv0))
+							pcv0 = pcv;
+						sig.pcv(nz, na) = pcv - pcv0;
+					}
+				}
+			}
+		}
+
+		/*
+		for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = c.ants.begin(); it != c.ants.end(); it++)
+		{
+			const RingAntenna& a = **it;
+			if (it != c.ants.begin())
+				continue;
+
+			for (int nf = 0; nf < Gnss::esigInvalid; nf++)
+			{
+				Gnss::Signal eft = (Gnss::Signal)nf;
+				if (eft != Gnss::G01)
+					continue;
+				if (a.m_sigs.find(eft) == a.m_sigs.end())
+					continue;
+				if (Gnss::getBand(eft) != eb)
+					continue;
+
+				double f = Gnss::getNormFreq(eb, eft);
+				ShProjection s = shp[eb].getProjection(Gnss::getNormFreq(eb, f));
+				double az = 0;
+				std::vector<double> dif;
+				for (int nz = 0; nz < a.m_grid.nz; nz++)
+				{
+					double zen = nz * a.m_grid.step.zen;
+
+					double ph = a.getPcc(eft, zen, az);
+					double ph0 = c.atm->getPcc(eft, zen, az);
+					dif.push_back(ph - ph0);
+					if (nz > 0)
+						dif[dif.size() - 1] -= dif[0];
+				}
+
+				dif[0] = 0;
+
+				Sleep(0);
+			}
+		}
+		*/
+	}
+
+	for (std::vector<std::shared_ptr<RingAntenna>>::const_iterator it = c.ants.begin(); it != c.ants.end(); it++)
+	{
+		const RingAntenna& a = **it;
+		if (c.atm->m_alias.empty())
+		{
+			c.atm->m_alias = "(";
+		}
+		else
+		{
+			c.atm->m_alias += ",";
+		}
+		c.atm->m_alias += a.m_alias;
+	}
+
+	c.atm->m_alias += ")";
+	//c.atm->m_sigs = fsigs;
+	return c;
+
+}
+
 void RingNode::addAntennas(const std::vector<std::shared_ptr<RingAntenna>>& ras)
 {
 	m_ants.insert(m_ants.end(), ras.begin(), ras.end());
-	clusterize(0);
+	clusterize(0, ClusterMode());
 }
 
 void RingNode::removeAnt(RingAntenna* pa)
@@ -276,7 +682,7 @@ void RingNode::removeAnt(RingAntenna* pa)
 		}
 	}
 
-	clusterize(0);
+	clusterize(0, ClusterMode());
 }
 
 ///////////////////////////
@@ -375,7 +781,7 @@ void RingNode::serialize(Archive& ar)
 			m_ants.push_back(a);
 		}
 		m_metrics.serialize(ar);
-		clusterize(0);
+		clusterize(0, ClusterMode());
 	}
 }
 

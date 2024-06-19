@@ -40,11 +40,14 @@
 namespace can2
 {
 	constexpr double PI = 3.141592653589793238462643383280;
-	constexpr double DEG2RAD = PI / 180.0;
+	constexpr double DEG2RAD = (PI / 180.0);
+	constexpr double RAD2DEG = (180.0 / PI);
+
+	class ThetaPhi;
 
 	//
 	// ZenAz - zenith and azimuth angles in spherical coord system
-	// 
+	// angles are in degtrees
 	// Zenith angle is in [0, 180], counting from zenith direction
 	// Azimuth angle is in [0, 360], counting clockwise from Y axis of the corresponding Decart coords
 	//
@@ -73,6 +76,18 @@ namespace can2
 			double sinz = ::sin(zen * DEG2RAD);
 			return Point3d(sinz * ::sin(az * DEG2RAD), sinz * ::cos(az * DEG2RAD), ::cos(zen * DEG2RAD));
 		}
+		double getTheta() const {
+			return DEG2RAD * zen;
+		}
+		double getPhi() const {
+			double phiDeg = 90 - az;
+			return DEG2RAD * phiDeg;
+		}
+		inline operator ThetaPhi () const;
+
+		bool operator== (const ZenAz& za) const {
+			return az == za.az && zen == za.zen;
+		}
 
 		friend Archive& operator<<(Archive& ar, const ZenAz& za) {
 			ar << za.zen;
@@ -85,4 +100,48 @@ namespace can2
 			return ar;
 		}
 	};
+
+	/////////////////////////////////////////////
+	// ThetaPhi - zenith angle theta and phi = atan2(y/x) 
+	// always in radians
+	class ThetaPhi
+	{
+		// Construction:
+	public:
+		ThetaPhi() { theta = phi = 0; }
+		ThetaPhi(double t, double p) { theta = t; phi = p; }
+		ThetaPhi(const Point3d& ptEnu) {
+			double r = ::sqrt(ptEnu.x * ptEnu.x + ptEnu.y * ptEnu.y);
+			theta = atan2(r, ptEnu.z);
+			phi = atan2(ptEnu.y, ptEnu.x);
+		}
+		ThetaPhi(const ZenAz& za) : theta (za.zen* DEG2RAD), phi ((90 - za.az)* DEG2RAD) {
+		}
+
+		~ThetaPhi() {}
+
+		// Attributes:
+	public:
+		double theta; // zenith angle in radians 0 - zenith, PI - nadir
+		double phi; // phi angle in radians = atan(y/x)
+
+		double getEle() const {
+			return RAD2DEG * (PI / 2 - theta);
+		}
+		double getAz() const {
+			return RAD2DEG * (PI / 2 - phi);
+		}
+
+		inline operator ZenAz () const;
+	};
+
+	inline ThetaPhi::operator ZenAz() const {
+		return ZenAz(RAD2DEG * theta, RAD2DEG*(PI/2 - phi));
+	}
+
+	inline ZenAz::operator ThetaPhi() const {
+		return ThetaPhi(getTheta(), getPhi());
+	}
+
+
 }

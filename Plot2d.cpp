@@ -759,6 +759,7 @@ Curve2d::Curve2d()
 	m_bDrawCurve = true;
 	m_bSel = false;
 	m_bDirection = false;
+	m_eps = epsCircle;
 }
 
 Curve2d::~Curve2d()
@@ -996,6 +997,8 @@ void Curve2d::draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d ptMax
 				CPoint pt = mapPoint(i, rectArea, ptMin, ptMax);
 				ptAverage.x += m_pts[i].x;
 				ptAverage.y += m_pts[i].y;
+				drawPoint(pDC, pt);
+				/*
 				CPoint pts[4];
 				pts[0] = CPoint(pt.x - m_nWidth * 2, pt.y - m_nWidth * 2);
 				pts[1] = CPoint(pt.x + m_nWidth * 2, pt.y + m_nWidth * 2);
@@ -1003,6 +1006,7 @@ void Curve2d::draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d ptMax
 				pts[3] = CPoint(pt.x + m_nWidth * 2, pt.y - m_nWidth * 2);
 				pDC->MoveTo(pts[0]); pDC->LineTo(pts[1]);
 				pDC->MoveTo(pts[2]); pDC->LineTo(pts[3]);
+				*/
 			}
 		}
 		else if (m_eStyle == eSmallPoints)
@@ -1096,7 +1100,7 @@ void Curve2d::draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d ptMax
 
 void Curve2d::drawPoint(CDC* pDC, CPoint pt)
 {
-	int nSize = 5;
+	int nSize = m_nWidth; // 5
 	if (m_eps == epsRect)
 	{
 		pDC->MoveTo(pt.x - nSize, pt.y - nSize);
@@ -1323,8 +1327,10 @@ void BarCurve2d::draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d pt
 
 			if (nPass == 0)
 			{
+				COLORREF clrOld = pDC->GetBkColor();
 				CRect r(pt1.x - m_nWidth / 2, pt1.y, pt0.x + m_nWidth / 2, pt0.y);
 				pDC->FillSolidRect(r, m_rgb);
+				pDC->SetBkColor(clrOld);
 			}
 			else
 			{
@@ -1344,6 +1350,102 @@ void BarCurve2d::draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d pt
 }
 
 // End of BarCurve2d implementation
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+// BandCurve2d implementation
+
+/////////////////////////
+// Construction:
+BandCurve2d::BandCurve2d()
+{
+}
+
+BandCurve2d::~BandCurve2d()
+{
+}
+
+/////////////////////////////
+// Operations:
+void BandCurve2d::setData(int nID, LPCTSTR szName, std::vector <Point2d>& pts, std::vector<Point2d>& ptMinMax)
+{
+	ASSERT(pts.size() == ptMinMax.size());
+
+	Curve2d::setData(nID, szName, pts);
+
+	for (int i = 0; i < (int)m_pts.size(); i++)
+	{
+		if (m_ptMin.y > ptMinMax[i].x)
+			m_ptMin.y = ptMinMax[i].x;
+		if (m_ptMax.y < ptMinMax[i].y)
+			m_ptMax.y = ptMinMax[i].y;
+	}
+
+
+	m_ptEdges.clear();
+	m_ptEdges.push_back(pts[0]);
+	for (int i = 0; i < (int)pts.size(); i++)
+	{
+		if (isnan(ptMinMax[i].y))
+			continue;
+		
+		m_ptEdges.push_back(Point2d (pts[i].x, ptMinMax[i].y));
+	}
+	m_ptEdges.push_back(pts[pts.size() - 1]);
+	for (int i = pts.size() - 1; i >= 0; i--)
+	{
+		if (isnan(ptMinMax[i].x))
+			continue;
+
+		m_ptEdges.push_back(Point2d(pts[i].x, ptMinMax[i].x));
+	}
+	m_ptEdges.push_back(pts[0]);
+}
+
+void BandCurve2d::draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d ptMax, int nPass)
+{
+	using namespace Gdiplus;
+
+	if (!m_bDrawCurve)
+		return;
+
+	if (nPass == 0)
+	{
+		Graphics grp(pDC->m_hDC);
+
+		GraphicsPath path;
+		path.StartFigure();
+		Point pt0;
+		for (int i = 0; i < (int)m_ptEdges.size(); i++)
+		{
+			CPoint cpt = mapPoint(m_ptEdges[i], rectArea, ptMin, ptMax);
+			Point pt(cpt.x, cpt.y);
+			if (i == 0)
+			{
+				pt0 = pt;
+				continue;
+			}
+
+			path.AddLine(pt0, pt);
+			pt0 = pt;
+		}
+
+		//Rect r(120, 120, 40, 40);
+		//path.AddRectangle(r);
+		path.CloseFigure();
+
+		SolidBrush br(Color(100, GetRValue(m_rgb), GetGValue(m_rgb), GetBValue(m_rgb)));
+		//SolidBrush br(Color(255, 0, 0, 200));
+		//Pen pen(Color(255, 0, 0), 1);
+		grp.FillPath(&br, &path);
+		//grp.DrawRectangle(&pen, r);
+	}
+	Curve2d::draw(pDC, rectArea, ptMin, ptMax, nPass);
+
+
+}
+
+// End of BandCurve2d implementation
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1500,6 +1602,56 @@ void Inscription::draw(CDC& dc, Plot2d* pPlot)
 }
 
 // End of Inscription implementation
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// PlotTitle implementation
+
+/////////////////////////////
+// Construction:
+PlotTitle::PlotTitle()
+{
+	m_id = 0;
+	m_nAlign = DT_CENTER;
+	m_rect = CRect(0, 0, 0, 0);
+	m_et = etTop;
+}
+
+PlotTitle::~PlotTitle()
+{
+}
+
+void PlotTitle::layout(CDC& dc, const CRect& rectClient)
+{
+	CRect rc = rectClient;
+	CRect r = rc;
+
+	r.left += 50;
+	r.right -= 50;
+
+	CFont* pOldFont = (CFont*)dc.SelectObject(&m_font);
+	int nHeight = dc.DrawText(m_text.c_str(), m_text.length(), &r, DT_CALCRECT| DT_WORDBREAK);
+	dc.SelectObject(pOldFont);
+
+	m_rect.left = rc.left;
+	m_rect.top = rc.top;
+	m_rect.bottom = rc.top + nHeight + 20;
+	m_rect.right = rc.right;
+}
+
+void PlotTitle::draw(CDC& dc, Plot2d* pPlot)
+{
+	if (isEmpty())
+		return;
+
+	COLORREF clrOld = dc.SetTextColor(m_clr);
+	CFont* pOldFont = (CFont*)dc.SelectObject(&m_font);
+	int nHeight = dc.DrawText(m_text.c_str(), m_text.length(), &m_rect, DT_CENTER | DT_WORDBREAK | DT_TOP);
+	dc.SelectObject(pOldFont);
+	dc.SetTextColor(clrOld);
+}
+
+// End of PlotTitle implementation
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1876,8 +2028,13 @@ bool Plot2d::initControl(CWnd* pParent)
 		SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
 		memmove(&lf, &ncm.lfMessageFont, sizeof(LOGFONT));
 	}
+	{
+		HDC hdc = ::GetDC(NULL);
+		int xLogPx = GetDeviceCaps(hdc, LOGPIXELSX);
+		lf.lfHeight = (LONG)ceil(18.0 * xLogPx / 72.0);
 
-
+		::ReleaseDC(NULL, hdc);
+	}
 	m_xAxis.m_font.CreateFontIndirect(&lf);
 
 	strncpy_s(lf.lfFaceName, "Arial", LF_FACESIZE);
@@ -2288,6 +2445,93 @@ void Plot2d::addBar(int nID, LPCTSTR szName, std::vector<Point2d>& pts, std::vec
 	Invalidate();
 }
 
+void Plot2d::addBand(int nID, LPCTSTR szName, std::vector<Point2d>& pts, std::vector<Point2d>& ptMinMax, int nWidth, COLORREF rgb, bool bSecondary)
+{
+	// Get the number of auto-color curves
+	int nAutoColorNum = 0;
+	for (int i = 0; i < (int)m_curves.size(); i++)
+	{
+		if (m_curves[i]->m_bAutoColor)
+			nAutoColorNum++;
+	}
+
+	for (int i = 0; i < (int)m_curves2.size(); i++)
+	{
+		if (m_curves2[i]->m_bAutoColor)
+			nAutoColorNum++;
+	}
+
+	removeCurve(nID);
+	if (pts.size() <= 0)
+	{
+		return;
+	}
+
+	BOOL bAutoColor = (rgb == 0xFFFFFFFF);
+	std::vector <Curve2d*>& curves = bSecondary ? m_curves2 : m_curves;
+
+	if (bSecondary && pts.size())
+		m_bEnableSecondaryAxis = TRUE;
+
+
+	int nAutoColor = 0;
+	for (int i = 0; i < (int)curves.size(); i++)
+	{
+		BarCurve2d* pCurve = (BarCurve2d*)curves[i];
+		if (pCurve->m_bAutoColor)
+			nAutoColor++;
+	}
+
+	if (curves.size() >= CURVES_MAX)
+	{
+		TRACE("Too many curves\n");
+		return;
+	}
+
+	BandCurve2d* pCurve = new BandCurve2d();
+	pCurve->m_id = nID;
+	pCurve->m_bAutoColor = bAutoColor;
+	pCurve->m_rgb = rgb;
+	pCurve->m_name = szName;
+	pCurve->m_nWidth = nWidth;
+	pCurve->setData(nID, szName, pts, ptMinMax);
+	pCurve->m_eStyle = Curve2d::eSolid;
+	pCurve->m_dMaxPointDistance = m_dCurveMaxPointDistance;
+	curves.push_back(pCurve);
+
+	autoScale(m_xAxis.m_auto, m_yAxis.m_auto, m_yAxis2.m_auto);
+
+	nAutoColor = 0;
+	for (int i = 0; i < (int)curves.size(); i++)
+	{
+		Curve2d* pCurve = curves[i];
+
+		if (pCurve->m_bAutoColor)
+		{
+			pCurve->deletePens();
+
+			short hue = (short)((220.0 - 0.0) / nAutoColorNum * nAutoColor + 0);
+			if (hue < 0)
+				hue = 0;
+
+			COLORREF clr = ColorHLS((byte)hue, 120, 240); // hls2rgb((WORD)hue, 120, 240);
+
+			pCurve->createPens(PS_SOLID, pCurve->m_nWidth, clr); // m_pen.CreatePen (
+		}
+		else
+		{
+			//CPen * pPen = &(pCurve->m_pen); //m_penCurves[i];
+			//pPen->DeleteObject ();
+			pCurve->deletePens();
+			pCurve->createPens(PS_SOLID, pCurve->m_nWidth, pCurve->m_rgb);
+		}
+
+		if (pCurve->m_bAutoColor)
+			nAutoColor++;
+	}
+	Invalidate();
+}
+
 void Plot2d::setCurveMaxPointDistance(double dMaxDistance, int nID, bool bSecondary)
 {
 	std::vector <Curve2d*>& curves = bSecondary ? m_curves2 : m_curves;
@@ -2506,6 +2750,20 @@ void Plot2d::clearInscriptions()
 	m_inscs.resize(0);
 }
 
+void Plot2d::addPlotTitle(const char* szText, COLORREF clr)
+{
+	m_plotTitle.m_text = szText;
+	m_plotTitle.m_clr = clr;
+}
+
+void Plot2d::setTitleFont(const LOGFONT& lf)
+{
+	if (m_plotTitle.m_font.m_hObject != NULL)
+		m_plotTitle.m_font.DeleteObject();
+
+	m_plotTitle.m_font.CreateFontIndirect(&lf);
+}
+
 void Plot2d::addCurveMarks(int nID, std::vector<COLORREF>& clrs, int nMarkSize)
 {
 	Curve2d* pc = getCurve(nID);
@@ -2587,18 +2845,31 @@ void Plot2d::drawCurves(CDC* pDC, int nPass)
 		return;
 	}
 
-	for (int i = 0; i < (int)m_curves.size(); i++)
+	for (int na = 0; na < 2; na++)
 	{
-		Curve2d* pCurve = m_curves[i];
-		pCurve->draw(pDC, rectPlot, m_frectPlotArea.pt, m_frectPlotArea.topRight(), nPass);
-	}
-
-	if (m_bEnableSecondaryAxis)
-	{
-		for (int i = 0; i < (int)m_curves2.size(); i++)
+		for (int i = 0; i < (int)m_curves.size(); i++)
 		{
-			Curve2d* pCurve = m_curves2[i];
-			pCurve->draw(pDC, rectPlot, m_frectPlotArea2.pt, m_frectPlotArea2.topRight(), nPass);
+			Curve2d* pCurve = m_curves[i];
+			if (na == 0 && pCurve->getArchType() != Curve2d::eatBandCurve)
+				continue;
+			else if (na == 1 && pCurve->getArchType() == Curve2d::eatBandCurve)
+				continue;
+
+			pCurve->draw(pDC, rectPlot, m_frectPlotArea.pt, m_frectPlotArea.topRight(), nPass);
+		}
+
+		if (m_bEnableSecondaryAxis)
+		{
+			for (int i = 0; i < (int)m_curves2.size(); i++)
+			{
+				Curve2d* pCurve = m_curves2[i];
+				if (na == 0 && pCurve->getArchType() != Curve2d::eatBandCurve)
+					continue;
+				else if (na == 1 && pCurve->getArchType() == Curve2d::eatBandCurve)
+					continue;
+
+				pCurve->draw(pDC, rectPlot, m_frectPlotArea2.pt, m_frectPlotArea2.topRight(), nPass);
+			}
 		}
 	}
 
@@ -2768,6 +3039,7 @@ void Plot2d::drawEvents(CDC* pDC)
 
 void Plot2d::drawAreas(CDC* pDC)
 {
+	COLORREF clrOld = pDC->GetBkColor();
 	for (int i = 0; i < (int)m_areas.size(); i++)
 	{
 		CArea& a = m_areas[i];
@@ -2782,6 +3054,7 @@ void Plot2d::drawAreas(CDC* pDC)
 
 		pDC->FillSolidRect(r, a.clr);
 	}
+	pDC->SetBkColor(clrOld);
 }
 
 void Plot2d::drawInscriptions(CDC* pDC)
@@ -3610,8 +3883,16 @@ void Plot2d::computeScale(CDC* pDC, const CRect& rectClient)
 		CRect rect = rectClient;
 		//GetClientRect (&rect);
 
-		rect.top += 10;
-		rect.right -= 30;
+		rect.top += 20;
+		rect.right -= 70;
+		rect.bottom -= 30;
+		rect.left += 30;
+
+		if (!m_plotTitle.isEmpty())
+		{
+			m_plotTitle.layout(*pDC, rect);
+			rect.top = m_plotTitle.m_rect.bottom + 20;
+		}
 
 		m_xAxis.layout(pDC, rect, this);
 
@@ -3857,9 +4138,12 @@ void Plot2d::OnPaint()
 		drawBackground(&dc);
 		if (m_eMode == emDecart)
 		{
-			drawAxis(&dc);
+			m_plotTitle.draw(dc, this);
 
 			drawAreas(&dc);
+
+			drawAxis(&dc);
+
 
 			drawGrid(&dc);
 			drawCurves(&dc, 0);

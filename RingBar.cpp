@@ -41,6 +41,7 @@
 #include "RingPcvView.h"
 #include "RingPcoView.h"
 #include "RingDifView.h"
+#include "ManualClusterDlg.h"
 
 IMPLEMENT_DYNAMIC(CRingBar, CPaneDialog)
 
@@ -84,6 +85,8 @@ CRingBar::CRingBar()
 	m_bHandleMinSize = TRUE;
 	SetMinSize(can2::calcDialogSize(IDD_DIALOGBAR_RING, theApp.m_hInstance));
 	m_pTabView = nullptr;
+	m_nMeanType = 1;
+	m_nUseSignal = 2;
 
 }
 
@@ -122,6 +125,8 @@ BEGIN_MESSAGE_MAP(CRingBar, CPaneDialog)
 	ON_COMMAND(IDC_CHECK_BEI_B3, &OnCheckSlot)
 
 	ON_COMMAND(IDC_CHECK_SIMPLE, &OnCheckSlot)
+	ON_BN_CLICKED(IDC_BUTTON_MANUAL_CLUSTER, &OnBnClickedButtonManualCluster)
+	ON_UPDATE_COMMAND_UI(IDC_BUTTON_MANUAL_CLUSTER, &OnUpdateButtonManualCluster)
 END_MESSAGE_MAP()
 
 LRESULT CRingBar::OnInitDialog(WPARAM wParam, LPARAM lParam)
@@ -180,6 +185,8 @@ void CRingBar::DoDataExchange(CDataExchange* pDX)
 
 	DDX_Control(pDX, IDC_COMBO_CLUST, m_cmbCluster);
 	DDX_Control(pDX, IDC_CUSTOM_DISTS, m_wndDists);
+	DDX_Radio(pDX, IDC_RADIO_ARMEAN, m_nMeanType);
+	DDX_Radio(pDX, IDC_RADIO_CLUST_ANY, m_nUseSignal);
 
 	BOOL bSimple = prn->m_metrics.bSimpleMode;
 	DDX_Check(pDX, IDC_CHECK_SIMPLE, bSimple);
@@ -218,7 +225,7 @@ void CRingBar::OnTimer(UINT nIDEvent)
 		{
 			CWaitCursor wc;
 			int clust = m_cmbCluster.GetItemData(nSel);
-			prn->clusterize(clust);
+			prn->clusterize(clust, can2::RingNode::ClusterMode(m_nMeanType, m_nUseSignal));
 			m_wndDists.Invalidate();
 			CRingDoc* pDoc = m_pTabView->GetDocument();
 			m_wndDists.setSel(0, 0);
@@ -245,3 +252,29 @@ void CRingBar::OnCheckSlot()
 	SetTimer(6, 1, NULL);
 }
 
+
+
+void CRingBar::OnBnClickedButtonManualCluster()
+{
+	UpdateData(TRUE);
+	can2::RingNode* prn = getRingNode();
+	CManualClusterDlg dlg(this);
+	dlg.m_prn = prn;
+
+	if (dlg.DoModal() != IDOK)
+		return;
+
+	CWaitCursor wc;
+
+	prn->clusterizeManual(dlg.m_cls, can2::RingNode::ClusterMode(m_nMeanType, m_nUseSignal));
+
+	m_wndDists.Invalidate();
+	CRingDoc* pDoc = m_pTabView->GetDocument();
+	m_wndDists.setSel(0, 0);
+	pDoc->select(0, 0);
+}
+
+void CRingBar::OnUpdateButtonManualCluster(CCmdUI* pCmdUI)
+{
+	pCmdUI->Enable(TRUE);
+}

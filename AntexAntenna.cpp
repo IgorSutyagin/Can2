@@ -84,6 +84,8 @@ double AntexAntenna::SignalData::getPcv(double z) const
 
 double AntexAntenna::SignalData::getPcv(double z, double a) const
 {
+	if (ant->m_grid.za1.zen < z && z < ant->m_grid.za1.zen + 0.001)
+		z = ant->m_grid.za1.zen;
 	int z0 = (int)floor(z / ant->m_grid.step.zen);
 	int z1 = z0 + 1;
 	if (z == ant->m_grid.za1.zen)

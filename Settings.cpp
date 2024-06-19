@@ -141,9 +141,24 @@ void Settings::save()
 	}
 }
 
-void Settings::serialize(Archive& ar)
+void Settings::Plot2dSettings::serialize(Archive& ar)
 {
 	DWORD dwVer = 1;
+	if (ar.isStoring())
+	{
+		ar << dwVer;
+		ar << title;
+	}
+	else
+	{
+		ar >> dwVer;
+		ar >> title;
+	}
+}
+
+void Settings::serialize(Archive& ar)
+{
+	DWORD dwVer = 2;
 	if (ar.isStoring())
 	{
 		ar << dwVer;
@@ -159,6 +174,13 @@ void Settings::serialize(Archive& ar)
 				plot3d[i].camera[j]->serialize(ar);
 			}
 			plot3d[i].params->serialize(ar);
+		}
+
+		int nep2Max = ep2Max;
+		ar << nep2Max;
+		for (int i = 0; i < nep2Max; i++)
+		{
+			plot2d[i].serialize(ar);
 		}
 	}
 	else
@@ -177,6 +199,16 @@ void Settings::serialize(Archive& ar)
 			}
 			plot3d[i].params->serialize(ar);
 		}
+
+		if (dwVer < 2)
+			return;
+		int nep2Max = 0;
+		ar >> nep2Max;
+		for (int i = 0; i < nep2Max; i++)
+		{
+			plot2d[i].serialize(ar);
+		}
+
 	}
 }
 // End of Collection of Can2 settings implementation

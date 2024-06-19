@@ -33,68 +33,52 @@
 // 	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 #pragma once
+#include "afxdialogex.h"
 
-#include "Plot2d.h"
+#include "TreeCtrlEx.h"
+#include "RingNode.h"
 
-class CRingDoc;
+// CManualClusterDlg dialog
 
-class CRingPcoView : public CFormView
+class CManualClusterDlg : public CDialogEx
 {
-	DECLARE_DYNCREATE(CRingPcoView)
-
-protected:
-	CRingPcoView();           // protected constructor used by dynamic creation
-	virtual ~CRingPcoView();
+	DECLARE_DYNAMIC(CManualClusterDlg)
 
 public:
-	enum { IDD = IDD_RING_PCO };
-#ifdef _DEBUG
-	virtual void AssertValid() const;
-#ifndef _WIN32_WCE
-	virtual void Dump(CDumpContext& dc) const;
-#endif
-#endif
-	bool m_bNeedInit;
-	CRect m_rCrt;
-	can2::Plot2d m_wndPlot;
-	double m_eleMask;
-	CFont m_font;
+	CManualClusterDlg(CWnd* pParent = nullptr);   // standard constructor
+	virtual ~CManualClusterDlg();
 
-	double m_yMax;
-	double m_yMin;
-	double m_xMin;
-	double m_xMax;
-	BOOL m_byAuto;
-	BOOL m_bxAuto;
-	int m_yDivs;
-	int m_xDivs;
-
-	CRingDoc* GetDocument() const;
-	void updateCurves();
-	void enableControls();
+// Dialog Data
+#ifdef AFX_DESIGN_TIME
+	enum { IDD = IDD_DIALOG_MANUAL_CLUSTER };
+#endif
+	can2::RingNode* m_prn;
+	can2::TreeCtrlEx m_tree;
+	can2::TreeCursor m_tDrag;
+	can2::TreeCursor m_tDrop;
+	HCURSOR cursor_hand;
+	HCURSOR cursor_arr;
+	HCURSOR cursor_no;
+	bool	isCursorArrow;
+	bool m_bDragging;
+	CImageList* m_pDragImage;	//Image list to be used for dragging
+	CImageList m_imgList;
+	std::vector<std::vector<can2::RingAntenna*>> m_cls;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
 	DECLARE_MESSAGE_MAP()
 public:
-	int m_nCoord;
-	afx_msg void OnSize(UINT nType, int cx, int cy);
-	virtual void OnInitialUpdate();
-	afx_msg void OnClickedRadioEast();
-	afx_msg void OnRadioNorth();
-	afx_msg void OnRadioUp();
-	afx_msg void OnChangeEditEleMask();
-	afx_msg void OnTimer(UINT_PTR nIDEvent);
-
-	afx_msg void OnBnClickedCheckAuto();
-	afx_msg void OnChangeEditXMinMax();
-	afx_msg void OnChangeEditYMinMax();
-	afx_msg void OnBnClickedButtonAddComment();
-	afx_msg void OnBnClickedButtonRemoveComments();
-	afx_msg void OnBnClickedButtonSave();
-	afx_msg void OnBnClickedButtonLoad();
-
-	afx_msg void OnBnClickedButtonSetPlotTitle();
+	virtual BOOL OnInitDialog();
+	virtual void OnOK();
+	afx_msg void OnTvnBegindragTreeCluster(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+	void setDefaultCursor();
+	can2::TreeCursor moveChildItem(can2::TreeCursor tItem, can2::TreeCursor tNewParent, HTREEITEM hAfter);
+	bool canDrop(can2::TreeCursor t) const;
+	bool canDrag(can2::TreeCursor t) const;
+	afx_msg void OnBnClickedButtonUp();
+	afx_msg void OnBnClickedButtonDown();
 };
-

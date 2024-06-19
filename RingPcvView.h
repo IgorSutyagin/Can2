@@ -51,6 +51,11 @@ public:
 // Attributes:
 public:
 	CRingPcvView* m_pView;
+	can2::Point3d m_ptPco;
+
+// Operations:
+public:
+	void onSignalChanged();
 
 // Overrides:
 public:
@@ -59,6 +64,7 @@ public:
 	virtual can2::Gnss::Signal getSignal() const;
 	virtual double getData(const can2::Node* node, can2::Gnss::Signal es, double x, double y) const;
 	virtual void onViewChanged();
+	virtual void updateData();
 
 };
 

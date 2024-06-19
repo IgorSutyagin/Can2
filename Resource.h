@@ -95,6 +95,8 @@
 #define IDD_RING_PCO                    317
 #define IDD_RING_DIF                    318
 #define IDD_ANTEX_PCO_TABLE             319
+#define IDD_DIALOG_MANUAL_CLUSTER       320
+#define IDD_DIALOG_PROMPT_TITLE         322
 #define IDC_COMBO_SIGNAL                1000
 #define IDC_EDIT_MIN                    1001
 #define IDC_EDIT_MAX                    1002
@@ -119,10 +121,21 @@
 #define IDC_CHECK_RAINBOW               1013
 #define IDC_RADIO_ONLY_COS              1013
 #define IDC_RADIO_NO_WEIGHT             1014
-#define IDC_BUTTON1                     1015
 #define IDC_BUTTON_EXPORT               1015
+#define IDC_BUTTON_MANUAL_CLUSTER       1016
+#define IDC_RADIO_ARMEAN                1017
+#define IDC_RADIO_RMSSPH                1018
+#define IDC_TREE_CLUSTER                1018
+#define IDC_RADIO_CLUST_ANY             1019
+#define IDC_RADIO_CLUST_ATLEAST2        1020
+#define IDC_BUTTON_UP                   1020
+#define IDC_RADIO_CLUST_ONLYALL         1021
+#define IDC_BUTTON_DOWN                 1021
+#define IDC_CHECK1                      1021
+#define IDC_CHECK_CLUSTER_SPREAD        1021
 #define IDC_BUTTON_SAVE                 1071
 #define IDC_BUTTON_LOAD                 1072
+#define IDC_EDIT_TITLE                  1082
 #define IDC_EDIT_ELE_MASK               1101
 #define IDC_CHECK_GPS_P1                1105
 #define IDC_CHECK_GPS_P2                1106
@@ -156,6 +169,7 @@
 #define IDC_BUTTON_ADD_COMMENT          1256
 #define IDC_BUTTON_REMOVE_COMMENTS      1257
 #define IDC_RADIO_PCO                   1258
+#define IDC_BUTTON_SET_PLOT_TITLE       1258
 #define IDC_RADIO_PCO_PCV               1259
 #define ID_GNSSSIGNAL_VIEWPCV           32771
 #define ID_GNSSSIGNAL_VIEWPCVRMS        32772
@@ -172,9 +186,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        316
+#define _APS_NEXT_RESOURCE_VALUE        324
 #define _APS_NEXT_COMMAND_VALUE         32781
-#define _APS_NEXT_CONTROL_VALUE         1016
+#define _APS_NEXT_CONTROL_VALUE         1022
 #define _APS_NEXT_SYMED_VALUE           310
 #endif
 #endif

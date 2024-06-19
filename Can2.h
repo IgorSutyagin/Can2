@@ -54,10 +54,11 @@ class CCan2View;
 class CFileView;
 class CMainFrame;
 class CRingTabView;
-
+class CCan2App;
 
 CFileView* getFileView();
 CMainFrame* getMainFrame();
+CCan2App* getCan2App();
 
 
 class CCan2App : public CWinAppEx
@@ -81,6 +82,7 @@ public:
 	UINT  m_nAppLook;
 	BOOL  m_bHiColorIcons;
 	std::string m_startDirectory;
+	ULONG_PTR m_gpToken;
 
 // Implementation
 protected:

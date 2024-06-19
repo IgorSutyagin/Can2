@@ -39,7 +39,18 @@
 using namespace can2;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Vector implementation
+// Vector implementation 
+
+void Vector::getSubVector (Vector& v, int n0, int n1) const
+{
+	v.resize(n1 - n0);
+
+	for (int i = n0; i < n1; i++)
+	{
+		v[i - n0] = (*this)[i];
+	}
+}
+
 // End of Vector implementation
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -89,6 +100,164 @@ Vector Matrix::solve(const Vector& b) const
 
 	return x;
 }
+
+void Matrix::inverse()
+{
+	if (rs != cs || rs == 0)
+		throw new MatrixException("Matrix::inverse: Matrix is not square or matrix is empty");
+
+	int M = rs;
+	int i, j;
+
+	Matrix E (M, M);
+
+	// E is a E-matrix at the beginning
+	for (i = 0; i < M; i++)
+		for (j = 0; j < M; j++)
+			if (i == j)
+				E(i, j) = 1.0;
+			else
+				E(i, j) = 0.0;
+
+	int* nOrgCol = NULL;
+	nOrgCol = new int[M];
+	if (nOrgCol == NULL)
+		// Never get here because of
+		// throwing MemoryException
+		return;
+
+	// i-th item contains original column number
+	for (i = 0; i < M; i++)
+		nOrgCol[i] = i;
+
+	double xNull = 0.0;
+	double xDiag = 0.0;
+	// Convert matrix to a E-matrix
+	// and get inverse matrix in Tmp.
+	double* pMatrix = mat.data();
+	for (i = 0; i < M; i++)
+	{
+		double* pRow = pMatrix + M * i;
+		// Get diagonal item in current row:
+		double* pDiag = pMatrix + M * i + i;
+		if (*pDiag == xNull)
+		{// Exchange columns:
+
+			// Find appropriate column
+			for (j = i + 1; j < M; j++)
+				if (*(pRow + j) != xNull)
+					break;
+
+			if (j == M) { // Nothing could be done.
+				delete[] nOrgCol;
+				throw new MatrixException("Matrix::inverse: Matrix is singular");
+			}
+
+			exchCol(i, j);
+			E.exchCol(i, j);
+			int nTmp = nOrgCol[i];
+			nOrgCol[i] = nOrgCol[j];
+			nOrgCol[j] = nTmp;
+
+		}
+
+		// Normalize i-th row
+		xDiag = 1.0 / *pDiag;
+		multRowByVal(i, xDiag);
+		E.multRowByVal(i, xDiag);
+
+		// Process all rows bellow this one
+		// to make them like E-matrix rows:
+		for (j = i + 1; j < M; j++)
+		{
+			double* px = pMatrix + M * j + i;
+			double xMult = -*px;
+			addRows(j, i, xMult);
+			E.addRows(j, i, xMult);
+		}
+
+		// The same action above this row:
+		for (j = i - 1; j >= 0; j--)
+		{
+			double* px = pMatrix + M * j + i;
+			double xMult = -*px;
+			addRows(j, i, xMult);
+			E.addRows(j, i, xMult);
+		}
+	}
+
+	for (i = 0; i < M; i++)
+	{
+		if (nOrgCol[i] == i)
+			continue;
+		for (j = i + 1; j < M; j++)
+		{
+			if (i == nOrgCol[j])
+			{
+				E.exchCol(i, j);
+				nOrgCol[j] = nOrgCol[i];
+				nOrgCol[i] = i;
+				break;
+			}
+		}
+		ASSERT(j < M);
+	}
+
+	*this = E;
+	delete[] nOrgCol;
+}
+
+void Matrix::exchRow(int nRow1, int nRow2)
+{
+	if (nRow1 == nRow2)
+		return;
+
+	for (int i = 0; i < cs; i++)
+	{
+		std::swap((*this)(nRow1, i), (*this)(nRow2, i));
+	}
+}
+
+void Matrix::exchCol(int nCol1, int nCol2)
+{
+	if (nCol1 == nCol2)
+		return;
+
+	for (int i = 0; i < rs; i++)
+	{
+		double t = (*this)(i, nCol1);
+		(*this)(i, nCol1) = (*this)(i, nCol2);
+		(*this)(i, nCol2) = t;
+	}
+}
+
+void Matrix::multRowByVal(int nDst, double xMult)
+{
+	for (int i = 0; i < cs; i++)
+		(*this)(nDst, i) *= xMult;
+}
+
+void Matrix::addRows(int nDst, int nSrc, double mult)
+{
+	double* pMatrix = mat.data();
+	double* pSrcRow = pMatrix + cs * nSrc;
+	double* pDstRow = pMatrix + cs * nDst;
+
+	for (int i = 0; i < cs; i++)
+		*(pDstRow + i) += *(pSrcRow + i) * mult;
+}
+
+void Matrix::copyUpperTriangle()
+{
+	for (int i = 0; i < rows(); i++)
+	{
+		for (int j = 0; j < i; j++)
+		{
+			(*this)(i, j) = (*this)(j, i);
+		}
+	}
+}
+
 
 
 // End of Matrix implementation

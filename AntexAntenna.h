@@ -85,6 +85,10 @@ namespace can2
 				return nz > 0;
 			}
 
+			bool operator==(const Grid& a) const {
+				return step == a.step && za0 == a.za0 && za1 == a.za1 && na == a.na && nz == a.nz;
+			}
+
 			void serialize(Archive& ar)
 			{
 				DWORD dwVer = 1;

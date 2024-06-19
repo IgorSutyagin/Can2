@@ -207,9 +207,11 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="Gnss.h" />
     <ClInclude Include="MainFrm.h" />
+    <ClInclude Include="ManualClusterDlg.h" />
     <ClInclude Include="Node.h" />
     <ClInclude Include="OglEntity.h" />
     <ClInclude Include="PcoTableView.h" />
+    <ClInclude Include="PromptTitleDlg.h" />
     <ClInclude Include="Settings.h" />
     <ClInclude Include="OutputWnd.h" />
     <ClInclude Include="pch.h" />
@@ -229,6 +231,7 @@
     <ClInclude Include="RingSourcePg.h" />
     <ClInclude Include="RingTabView.h" />
     <ClInclude Include="SelAntDlg.h" />
+    <ClInclude Include="Sph.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Tools.h" />
     <ClInclude Include="TreeCtrlEx.h" />
@@ -254,6 +257,7 @@
     <ClCompile Include="FileView.cpp" />
     <ClCompile Include="Gnss.cpp" />
     <ClCompile Include="MainFrm.cpp" />
+    <ClCompile Include="ManualClusterDlg.cpp" />
     <ClCompile Include="OglEntity.cpp" />
     <ClCompile Include="OutputWnd.cpp" />
     <ClCompile Include="pch.cpp">
@@ -265,6 +269,7 @@
     <ClCompile Include="PcoTableView.cpp" />
     <ClCompile Include="Plot2d.cpp" />
     <ClCompile Include="Plot3d.cpp" />
+    <ClCompile Include="PromptTitleDlg.cpp" />
     <ClCompile Include="PropertiesWnd.cpp" />
     <ClCompile Include="RingBar.cpp" />
     <ClCompile Include="RingDifView.cpp" />
@@ -278,10 +283,11 @@
     <ClCompile Include="RingTabView.cpp" />
     <ClCompile Include="SelAntDlg.cpp" />
     <ClCompile Include="Settings.cpp" />
+    <ClCompile Include="Sph.cpp" />
     <ClCompile Include="Tools.cpp" />
     <ClCompile Include="TreeCtrlEx.cpp" />
     <ClCompile Include="TreeParser.cpp" />
-    <ClCompile Include="VecMap.cpp" />
+    <ClCompile Include="VecMat.cpp" />
     <ClCompile Include="ViewTree.cpp" />
     <ClCompile Include="PcoView.cpp" />
   </ItemGroup>

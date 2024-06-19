@@ -52,6 +52,7 @@
 #include <cassert>
 
 #include <gl\gl.h>
+#include <gdiplus.h>
 
 
 #endif //PCH_H

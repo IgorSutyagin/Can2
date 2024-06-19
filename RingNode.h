@@ -53,6 +53,7 @@ namespace can2
 		}
 		RingAntenna(const AntexAntenna& a, const char* alias, const char* sourceFile) {
 			*(AntexAntenna*)this = a;
+			m_ent = entRingAntenna;
 			m_alias = alias;
 			m_sourceFile = sourceFile;
 		}
@@ -116,6 +117,33 @@ namespace can2
 		{
 			std::vector<std::shared_ptr<RingAntenna>> ants; // sources for the type-mean
 			std::shared_ptr<RingAntenna> atm; // Type mean for clusters with many sources or soure if the cluster has only one calibration
+
+			void getMinMaxOff(Point3d& ptMin, Point3d& ptMax, Gnss::Signal es, double eleMask, AntexAntenna::OffsetMode em) const {
+				if (ants.size() < 2)
+					return;
+
+				ptMin = Point3d(DBL_MAX, DBL_MAX, DBL_MAX);
+				ptMax = Point3d(-DBL_MAX, -DBL_MAX, -DBL_MAX);
+				for (int i = 0; i < (int)ants.size(); i++) {
+					Point3d pco = ants[i]->calcOffset(es, eleMask, em);
+					if (!pco.isValid())
+						continue;
+					if (pco.x < ptMin.x)
+						ptMin.x = pco.x;
+					if (pco.y < ptMin.y)
+						ptMin.y = pco.y;
+					if (pco.z < ptMin.z)
+						ptMin.z = pco.z;
+					if (pco.x > ptMax.x)
+						ptMax.x = pco.x;
+					if (pco.y > ptMax.y)
+						ptMax.y = pco.y;
+					if (pco.z > ptMax.z)
+						ptMax.z = pco.z;
+				}
+				if (ptMin.x > ptMax.x)
+					ptMin = ptMax = Point3d(NAN, NAN, NAN);
+			}
 		};
 
 		struct Metrics
@@ -149,6 +177,26 @@ namespace can2
 			void serialize(Archive& ar);
 		};
 
+		struct ClusterMode
+		{
+			ClusterMode() : meanType(Arithmetic), useSignal(Any) {}
+			ClusterMode(int nMeanType, int nUseSignal) {
+				meanType = (0 <= nMeanType && nMeanType <= Shp) ? (MeanType)nMeanType : Arithmetic;
+				useSignal = (0 <= nUseSignal && nUseSignal <= OnlyCommon) ? (UseSignal)nUseSignal : Any;
+			}
+			enum MeanType
+			{
+				Arithmetic = 0,
+				Shp = 1
+			} meanType;
+			enum UseSignal
+			{
+				Any = 0, // Use any available signal
+				AtLeast2 = 1, // Use signals which are at least in 2 cluster calibrations
+				OnlyCommon = 2 // Use only signals which are in all cluster calibrations
+			} useSignal;
+		};
+
 		// Attributes:
 	public:
 		// Source calibrations
@@ -170,8 +218,10 @@ namespace can2
 	public:
 		void compDists();
 		static double norm(const AntexAntenna& a, Metrics& metrics);
-		void clusterize(int level);
-		Cluster unite(const Cluster& c1, const Cluster& c2);
+		void clusterize(int level, ClusterMode cm);
+		void clusterizeManual(std::vector<std::vector<RingAntenna*>>& cls, ClusterMode cm);
+		Cluster unite(ClusterMode cm, const Cluster& c1, const Cluster * pc2=nullptr);
+		Cluster uniteSh(ClusterMode cm, const Cluster& c1, const Cluster * pc2=nullptr);
 		void addAntennas(const std::vector<std::shared_ptr<RingAntenna>>& ras);
 		void removeAnt(RingAntenna* pa);
 
@@ -180,6 +230,15 @@ namespace can2
 				return !a->hasPcc(es);
 			});
 			return it == m_ants.end();
+		}
+
+		bool hasCluster() const {
+			for (int i = 0; i < (int)m_cls.size(); i++)
+			{
+				if (m_cls[i].ants.size() > 1)
+					return true;
+			}
+			return false;
 		}
 
 		// Overrides:

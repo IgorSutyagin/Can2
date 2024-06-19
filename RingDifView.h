@@ -76,10 +76,12 @@ public:
 	CRingDoc* GetDocument() const;
 	CRingBar* getRingBar() const;
 	void updateCurves();
+	void updateSpreadCurves();
 
 	int m_nRingOffsetMode;
 	BOOL m_bSimpleMode;
 	int m_nWhatToPlot;
+	BOOL m_bClusterSpread;
 
 	void enableControls();
 

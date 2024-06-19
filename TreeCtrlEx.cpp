@@ -239,6 +239,22 @@ void TreeCursor::copyFrom(TreeCursor& tFrom)
 	//SetState (nState, TVIS_EXPANDED);
 }
 
+TreeCursor TreeCursor::insertNextSibling(LPCTSTR szText, int nImageIndex)
+{
+	TV_INSERTSTRUCT ins;
+	ins.hParent = getParent();
+	ins.hInsertAfter = m_hTreeItem;
+	ins.item.mask = TVIF_TEXT | TVIF_PARAM;
+	ins.item.pszText = (LPTSTR)szText;
+	ins.item.lParam = NULL;
+	if (nImageIndex != -1) {
+		ins.item.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+		ins.item.iImage = nImageIndex;
+		ins.item.iSelectedImage = nImageIndex;
+	}
+	return TreeCursor(m_pTree->InsertItem(&ins), m_pTree);
+
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // CTreeCtrlEx

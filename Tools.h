@@ -101,7 +101,9 @@ namespace can2
 			ppmm = NAN;
 		}
 
-		double ppmm; // Points in mm
+		double ppmm; // Pixels in mm
+		double ppinch; // Pixels in inch
+		double pixInPoint; // Pixels in 1/72 of inch
 	};
 
 	inline CTime getDate(CTime t) {

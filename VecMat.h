@@ -50,22 +50,35 @@ namespace can2
 		void clear() {
 			data.clear();
 		}
+		void resize(int n) {
+			data.resize(n);
+		}
+		void init(double v) {
+			for (size_t i = 0; i < data.size(); i++)
+				data[i] = v;
+		}
 
 	// Operations:
 	public:
 		int len() const {
 			return data.size();
 		}
+		int size() const {
+			return data.size();
+		}
 		Vector& operator=(const Vector& a) {
-			*this = a;
+			data = a.data;
 			return *this;
 		}
 		Vector& operator=(Vector&& a) noexcept {
-			*this = a;
+			data = a.data;
 			return *this;
 		}
+		void getSubVector(Vector& v, int n0, int n1) const;
 		double operator()(int i) const { return data[i]; }
 		double& operator()(int i) {	return data[i];	}
+		double operator[](int i) const { return data[i]; }
+		double& operator[](int i) { return data[i]; }
 
 	// Implementation:
 	protected:
@@ -84,6 +97,15 @@ namespace can2
 		void clear() {
 			mat.clear();
 			cs = rs = 0;
+		}
+		void resize(int rs_, int cs_) {
+			rs = rs_;
+			cs = cs_;
+			mat.resize(rs * cs);
+		}
+		void init(double v) {
+			for (size_t i = 0; i < mat.size(); i++)
+				mat[i] = v;
 		}
 
 	// Operations:
@@ -134,11 +156,19 @@ namespace can2
 		// b = A*x
 		Vector solve(const Vector& b) const;
 
+		void inverse();
+		void copyUpperTriangle();
+
 	// Implementation:
 	protected:
 		std::vector<double> mat;
 		int rs;
 		int cs;
+
+		void exchRow(int row1, int row2);
+		void exchCol(int col1, int col2);
+		void multRowByVal(int row, double val);
+		void addRows(int rowDst, int rowSrc, double mult);
 	};
 
 }

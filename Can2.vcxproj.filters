@@ -156,6 +156,15 @@
     <ClInclude Include="PcoTableView.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Sph.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ManualClusterDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PromptTitleDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Can2.cpp">
@@ -224,7 +233,7 @@
     <ClCompile Include="PcoView.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="VecMap.cpp">
+    <ClCompile Include="VecMat.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="RingNode.cpp">
@@ -279,6 +288,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="PcoTableView.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Sph.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ManualClusterDlg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PromptTitleDlg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

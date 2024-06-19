@@ -69,7 +69,9 @@ namespace can2
 		bool operator==(const TreeCursor& t) const { return m_hTreeItem == t.m_hTreeItem; }
 		bool operator!=(const TreeCursor& t) const { return m_hTreeItem != t.m_hTreeItem; }
 
-		TreeCursor insertAfter(LPCTSTR strItem, HTREEITEM hAfter, int nImageIndex = -1) { return _insert(strItem, nImageIndex, hAfter); }
+		TreeCursor insertAfter(LPCTSTR strItem, HTREEITEM hAfter, int nImageIndex = -1) { 
+			return _insert(strItem, nImageIndex, hAfter); 
+		}
 		TreeCursor addHead(LPCTSTR strItem, int nImageIndex = -1) { return _insert(strItem, nImageIndex, TVI_FIRST); }
 		TreeCursor addTail(LPCTSTR strItem, int nImageIndex = -1) {	return _insert(strItem, nImageIndex, TVI_LAST); }
 
@@ -126,6 +128,8 @@ namespace can2
 		TreeCursor findChild(DWORD_PTR dwData, bool recursion = false);
 		
 		void copyFrom(TreeCursor& tFrom);
+
+		TreeCursor insertNextSibling(LPCTSTR szText, int nImage = -1);
 	};
 
 	/////////////////////////////////////////////////////////////////////////////

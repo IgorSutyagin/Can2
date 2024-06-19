@@ -68,6 +68,11 @@ CMainFrame* getMainFrame()
 	return pFrm;
 }
 
+CCan2App* getCan2App()
+{
+	return (CCan2App*)AfxGetApp();
+}
+
 // CCan2App
 
 BEGIN_MESSAGE_MAP(CCan2App, CWinAppEx)
@@ -101,6 +106,8 @@ CCan2App::CCan2App() noexcept : m_ptemplPcv(nullptr)
 	// TODO: replace application ID string below with unique ID string; recommended
 	// format for string is CompanyName.ProductName.SubProduct.VersionInformation
 	SetAppID(_T("TOPCON.Can2.1_0_0_1"));
+
+	m_gpToken = 0;
 
 }
 
@@ -137,6 +144,15 @@ BOOL CCan2App::InitInstance()
 
 	EnableTaskbarInteraction();
 
+	Gdiplus::GdiplusStartupInput gpStartupInput;
+
+	Gdiplus::Status st = Gdiplus::GdiplusStartup(&m_gpToken, &gpStartupInput, NULL);
+	if (st != Gdiplus::Ok)
+	{
+		LPCTSTR szMsg = "GDI+ initialization failed";
+		AfxMessageBox(szMsg);
+		return FALSE;
+	}
 	// AfxInitRichEdit2() is required to use RichEdit control
 	// AfxInitRichEdit2();
 
@@ -227,6 +243,8 @@ BOOL CCan2App::InitInstance()
 
 
 		m_sp.ppmm = (xLogPx + yLogPx) * 0.5 / 25.4;
+		m_sp.ppinch = (xLogPx + yLogPx) * 0.5;
+		m_sp.pixInPoint = m_sp.ppinch / 72;
 		ReleaseDC(NULL, hdc);
 	}
 
@@ -239,6 +257,8 @@ int CCan2App::ExitInstance()
 	AfxOleTerm(FALSE);
 
 	can2::gl_settings.save();
+
+	Gdiplus::GdiplusShutdown(m_gpToken);
 
 	return CWinAppEx::ExitInstance();
 }

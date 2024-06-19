@@ -206,7 +206,8 @@ namespace can2
 		enum ArchType
 		{
 			eatCurve = 0,
-			eatBarCurve = 1
+			eatBarCurve = 1,
+			eatBandCurve = 2
 		};
 
 		virtual ArchType getArchType() const {
@@ -295,6 +296,31 @@ namespace can2
 	};
 	// End of CIvsBarCurve interface
 	/////////////////////////////////////////////////////////////////////////////
+
+	//////////////////////////////////////////////////////////////////////////////
+	// BandCurve
+	class BandCurve2d : public Curve2d
+	{
+	// Construction:
+	public:
+		BandCurve2d();
+		~BandCurve2d();
+
+		virtual ArchType getArchType() const {
+			return eatBandCurve;
+		}
+	// Attributes:
+	public:
+		std::vector<Point2d> m_ptEdges;
+
+	// Operations:
+	public:
+		void setData(int nID, LPCTSTR szName, std::vector <Point2d>& pts, std::vector<Point2d>& ptMinMax);
+		virtual void draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d ptMax, int nPass);
+
+	};
+	// End of BandCurve interface
+	//////////////////////////////////////////////////////////////////////////////
 
 	/////////////////////////////////////////////////////////////////////////////
 	// SpecGrid interface
@@ -385,6 +411,42 @@ namespace can2
 		//virtual void serialize(CArchive& ar);
 	};
 	// End of Inscription interface
+	/////////////////////////////////////////////////////////////////////////////
+
+	/////////////////////////////////////////////////////////////////////////////
+	// PlotTitle interface
+	class PlotTitle
+	{
+		// Construction:
+	public:
+		PlotTitle();
+		~PlotTitle();
+
+		enum Type
+		{
+			etTop
+		};
+
+		// Attributes:
+	public:
+		int m_id;
+		std::string m_text;
+		int m_nAlign;
+		COLORREF m_clr;
+		CRect m_rect;
+		Type m_et;
+		CFont m_font;
+
+		// Operations:
+	public:
+		bool isEmpty() const {
+			return m_text.empty();
+		}
+		void layout(CDC& dc, const CRect& rectClient);
+		void draw(CDC& dc, Plot2d* pPlot);
+		//virtual void serialize(CArchive& ar);
+	};
+	// End of PlotTitle interface
 	/////////////////////////////////////////////////////////////////////////////
 
 	/////////////////////////////////////////////////////////////////////////////
@@ -591,6 +653,7 @@ namespace can2
 		std::vector <CEvent> m_events;
 		std::vector <CArea> m_areas;
 		PlotTable m_table;
+		PlotTitle m_plotTitle;
 
 		void addTableItem(int row, int col, COLORREF clr) {
 			while (row >= (int)m_table.m_rows.size())
@@ -676,6 +739,7 @@ namespace can2
 		void addCurve(int nID, LPCTSTR szName, std::vector<Point2d>& pts, int nWidth = 1, Curve2d::Style eStyle = Curve2d::eSolid, COLORREF rgb = 0xFFFFFFFF, bool bSecondary = false, bool bInvalidate = true);
 		void addPolarCurve(int nID, LPCTSTR szName, std::vector<Point2d>& pts, int nWidth = 1, Curve2d::Style eStyle = Curve2d::eSolid, COLORREF rgb = 0xFFFFFFFF);
 		void addBar(int nID, LPCTSTR szName, std::vector <Point2d>& pts, std::vector <double>& dWidths, std::vector <double>& dbs, int nWidth = 1, Curve2d::Style eStyle = Curve2d::eSolid, COLORREF rgb = 0xFFFFFFFF, bool bSecondary = false);
+		void addBand(int nID, LPCTSTR szName, std::vector<Point2d>& pts, std::vector<Point2d>& ptMinMax, int nWidth = 1, COLORREF rgb = 0xFFFFFFFF, bool bSecondary = false);
 		void setCurveMaxPointDistance(double dMaxDistance, int nID, bool bSecondary);
 		void setCurveStyle(int nID, Curve2d::Style eStyle, int nWidth, bool bSecondary);
 		void addCircle(int nID, double x, double y, double rad, COLORREF clr = 0, int nWidth = 1, int nStyle = PS_SOLID);
@@ -690,6 +754,8 @@ namespace can2
 		void addInscription(int nID, LPCTSTR szText, Point2d& ptPos, int nAlign, COLORREF clr, Inscription::Type et = Inscription::etRect, CFont* pFont = nullptr);
 		void deleteInscription(int nID = 0);
 		void clearInscriptions();
+		void addPlotTitle(const char* szText, COLORREF clr = RGB(0, 0, 0));
+		void setTitleFont(const LOGFONT& lf);
 		void addCurveMarks(int nID, std::vector<COLORREF>& clrs, int nMarkSize);
 		void addCurveMarks(int nID, std::vector<COLORREF>& clrs, std::vector<COLORREF>& clrs2, int nMarkSize);
 		Curve2d* getCurve(int nID) const;
