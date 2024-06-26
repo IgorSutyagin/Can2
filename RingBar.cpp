@@ -42,6 +42,7 @@
 #include "RingPcoView.h"
 #include "RingDifView.h"
 #include "ManualClusterDlg.h"
+#include "AutoClustDlg.h"
 
 IMPLEMENT_DYNAMIC(CRingBar, CPaneDialog)
 
@@ -87,7 +88,9 @@ CRingBar::CRingBar()
 	m_pTabView = nullptr;
 	m_nMeanType = 1;
 	m_nUseSignal = 2;
-
+	m_nMultisignalMode = 1;
+	m_nMetricsType = 0;
+	m_nWeight = can2::AntexAntenna::eSinAndCos;
 }
 
 CRingBar::~CRingBar()
@@ -124,6 +127,20 @@ BEGIN_MESSAGE_MAP(CRingBar, CPaneDialog)
 	ON_COMMAND(IDC_CHECK_BEI_B2, &OnCheckSlot)
 	ON_COMMAND(IDC_CHECK_BEI_B3, &OnCheckSlot)
 
+	ON_COMMAND(IDC_RADIO_RMS, &OnCheckSlot)
+	ON_COMMAND(IDC_RADIO_MAX, &OnCheckSlot)
+
+	ON_COMMAND(IDC_RADIO_PCO_PCV, &OnCheckSlot)
+	ON_COMMAND(IDC_RADIO_PCO, &OnCheckSlot)
+	ON_COMMAND(IDC_RADIO_VPCO, &OnCheckSlot)
+	ON_COMMAND(IDC_RADIO_HPCO, &OnCheckSlot)
+	ON_COMMAND(IDC_RADIO_EAST, &OnCheckSlot)
+	ON_COMMAND(IDC_RADIO_NORTH, &OnCheckSlot)
+
+	ON_COMMAND(IDC_RADIO_NOWEIGHT, &OnCheckSlot)
+	ON_COMMAND(IDC_RADIO_ONE, &OnCheckSlot)
+	ON_COMMAND(IDC_RADIO_SINANDCOS, &OnCheckSlot)
+
 	ON_COMMAND(IDC_CHECK_SIMPLE, &OnCheckSlot)
 	ON_BN_CLICKED(IDC_BUTTON_MANUAL_CLUSTER, &OnBnClickedButtonManualCluster)
 	ON_UPDATE_COMMAND_UI(IDC_BUTTON_MANUAL_CLUSTER, &OnUpdateButtonManualCluster)
@@ -150,7 +167,16 @@ void CRingBar::onCreateView(CRingTabView* pView)
 		if (i == 0)
 			m_cmbCluster.SetCurSel(i);
 		m_cmbCluster.SetItemData(index, i);
+
+		if (i == 0)
+			index = m_cmbMaxClust.AddString("Any");
+		else
+			index = m_cmbMaxClust.AddString(str);
+		m_cmbMaxClust.SetItemData(index, i);
+		if (i == prn->m_metrics.maxClust)
+			m_cmbMaxClust.SetCurSel(index);
 	}
+
 	m_wndDists.onInitialUpdate(getRingNode(), this);
 	if (prn->childs() > 0)
 	{
@@ -201,7 +227,25 @@ void CRingBar::DoDataExchange(CDataExchange* pDX)
 		if (pDX->m_bSaveAndValidate)
 			prn->m_metrics.use(es, bOn ? true : false);
 	}
+	if (!pDX->m_bSaveAndValidate)
+		m_nMultisignalMode = prn->m_metrics.esp;
+	DDX_Radio(pDX, IDC_RADIO_RMS, m_nMultisignalMode);
+	if (pDX->m_bSaveAndValidate)
+		prn->m_metrics.setMultisignalMode(m_nMultisignalMode);
 
+	if (!pDX->m_bSaveAndValidate)
+		m_nMetricsType = prn->m_metrics.et;
+	DDX_Radio(pDX, IDC_RADIO_PCO_PCV, m_nMetricsType);
+	if (pDX->m_bSaveAndValidate)
+		prn->m_metrics.setType(m_nMetricsType);
+
+	DDX_Control(pDX, IDC_COMBO_MAX_CLUST, m_cmbMaxClust);
+
+	if (!pDX->m_bSaveAndValidate)
+		m_nWeight = prn->m_metrics.em;
+	DDX_Radio(pDX, IDC_RADIO_NOWEIGHT, m_nWeight);
+	if (pDX->m_bSaveAndValidate)
+		prn->m_metrics.em = (can2::AntexAntenna::OffsetMode)m_nWeight;
 }
 
 void CRingBar::OnTimer(UINT nIDEvent)
@@ -223,13 +267,25 @@ void CRingBar::OnTimer(UINT nIDEvent)
 		int nSel = m_cmbCluster.GetCurSel();
 		if (nSel >= 0)
 		{
-			CWaitCursor wc;
-			int clust = m_cmbCluster.GetItemData(nSel);
-			prn->clusterize(clust, can2::RingNode::ClusterMode(m_nMeanType, m_nUseSignal));
-			m_wndDists.Invalidate();
-			CRingDoc* pDoc = m_pTabView->GetDocument();
-			m_wndDists.setSel(0, 0);
-			pDoc->select(0, 0);
+			CAutoClustDlg dlg(AfxGetMainWnd());
+			dlg.m_prn = prn;
+			dlg.m_nLevel = m_cmbCluster.GetItemData(nSel);
+			if (IDOK == dlg.DoModal())
+			{
+				int sel = m_cmbMaxClust.GetCurSel();
+				if (sel >= 0)
+					prn->m_metrics.maxClust = m_cmbMaxClust.GetItemData(sel);
+				else
+					prn->m_metrics.maxClust = 0;
+
+				CWaitCursor wc;
+				int clust = dlg.m_nLevel; // m_cmbCluster.GetItemData(nSel);
+				prn->clusterize(clust, can2::RingNode::ClusterMode(m_nMeanType, m_nUseSignal), &dlg.m_mapUse, prn->m_metrics.maxClust);
+				m_wndDists.Invalidate();
+				CRingDoc* pDoc = m_pTabView->GetDocument();
+				m_wndDists.setSel(0, 0);
+				pDoc->select(0, 0);
+			}
 		}
 	}
 	CPaneDialog::OnTimer(nIDEvent);
@@ -266,7 +322,7 @@ void CRingBar::OnBnClickedButtonManualCluster()
 
 	CWaitCursor wc;
 
-	prn->clusterizeManual(dlg.m_cls, can2::RingNode::ClusterMode(m_nMeanType, m_nUseSignal));
+	prn->clusterizeManual(dlg.m_cls, dlg.m_names, can2::RingNode::ClusterMode(m_nMeanType, m_nUseSignal));
 
 	m_wndDists.Invalidate();
 	CRingDoc* pDoc = m_pTabView->GetDocument();

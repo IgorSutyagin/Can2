@@ -35,37 +35,35 @@
 #pragma once
 #include "afxdialogex.h"
 
+#include "ListCtrlEx.h"
 #include "RingNode.h"
 
-// CRingSourcePg dialog
+// CAutoClustDlg dialog
 
-class CRingSourcePg : public CPropertyPage
+class CAutoClustDlg : public CDialogEx
 {
-	DECLARE_DYNAMIC(CRingSourcePg)
+	DECLARE_DYNAMIC(CAutoClustDlg)
 
 public:
-	CRingSourcePg();   // standard constructor
-	virtual ~CRingSourcePg();
+	CAutoClustDlg(CWnd* pParent = nullptr);   // standard constructor
+	virtual ~CAutoClustDlg();
 
 // Dialog Data
 #ifdef AFX_DESIGN_TIME
-	enum { IDD = IDD_PROPPAGE_RING_SOURCE };
+	enum { IDD = IDD_DIALOG_AUTO_CLUSTER };
 #endif
-	std::vector<can2::AntexFile*> m_afs;
-	std::shared_ptr<can2::RingNode> m_prn;
-	CListCtrl m_lstSource;
+	CListCtrlEx m_lst;
+	CComboBox m_cmbLevel;
+	can2::RingNode* m_prn;
+	static std::map<std::string, BOOL> c_mapUse;
+	std::map<std::string, bool> m_mapUse;
+	int m_nLevel;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
 	DECLARE_MESSAGE_MAP()
-	virtual BOOL OnInitDialog();
-	afx_msg void OnLvnEndlabeleditListSource(NMHDR* pNMHDR, LRESULT* pResult);
-	virtual void OnOK();
 public:
-	afx_msg void OnClickedButtonAdd();
-	afx_msg void OnClickedButtonRemove();
-	virtual BOOL OnKillActive();
-	afx_msg void OnBnClickedButtonUp();
-	afx_msg void OnBnClickedButtonDown();
+	virtual BOOL OnInitDialog();
+	virtual void OnOK();
 };

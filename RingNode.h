@@ -118,14 +118,17 @@ namespace can2
 			std::vector<std::shared_ptr<RingAntenna>> ants; // sources for the type-mean
 			std::shared_ptr<RingAntenna> atm; // Type mean for clusters with many sources or soure if the cluster has only one calibration
 
-			void getMinMaxOff(Point3d& ptMin, Point3d& ptMax, Gnss::Signal es, double eleMask, AntexAntenna::OffsetMode em) const {
+			void getMinMaxOff(Point3d& ptMin, Point3d& ptMax, double& roMin, double& roMax, Gnss::Signal es, double eleMask, AntexAntenna::OffsetMode em) const {
 				if (ants.size() < 2)
 					return;
 
 				ptMin = Point3d(DBL_MAX, DBL_MAX, DBL_MAX);
 				ptMax = Point3d(-DBL_MAX, -DBL_MAX, -DBL_MAX);
+				roMin = DBL_MAX;
+				roMax = -DBL_MIN;
 				for (int i = 0; i < (int)ants.size(); i++) {
-					Point3d pco = ants[i]->calcOffset(es, eleMask, em);
+					double ro = 0;
+					Point3d pco = ants[i]->calcOffset(es, eleMask, em, &ro);
 					if (!pco.isValid())
 						continue;
 					if (pco.x < ptMin.x)
@@ -140,9 +143,15 @@ namespace can2
 						ptMax.y = pco.y;
 					if (pco.z > ptMax.z)
 						ptMax.z = pco.z;
+					if (ro < roMin)
+						roMin = ro;
+					if (ro > roMax)
+						roMax = ro;
 				}
 				if (ptMin.x > ptMax.x)
 					ptMin = ptMax = Point3d(NAN, NAN, NAN);
+				if (roMin > roMax)
+					roMin = roMax = NAN;
 			}
 		};
 
@@ -157,6 +166,9 @@ namespace can2
 				use(Gnss::G02, true);
 				use(Gnss::R01, true);
 				use(Gnss::R02, true);
+				esp = espMax;
+				et = etPcoPcv;
+				maxClust = 1;
 			}
 			double eleMask; // Not really used yet. May be of use if the metrics changes
 
@@ -167,11 +179,41 @@ namespace can2
 			AntexAntenna::OffsetMode em;
 			bool bSimpleMode;
 
+			enum SigProc
+			{
+				espRms = 0, // Root mean square among all available signals
+				espMax = 1  // Maximum distance among all available signals
+			} esp;
+
+			enum Type
+			{
+				etPcoPcv = 0,
+				etPco = 1,
+				etVPco = 2,
+				etHPco = 3,
+				etE = 4,
+				etN = 5
+			} et;
+
+			int maxClust; // Maximum number of clusters
+
 			bool isUsed(Gnss::Signal f) const {
 				return fts.find(f) != fts.end() && fts.at(f);
 			}
 			void use(Gnss::Signal eft, bool use) {
 				fts[eft] = use;
+			}
+			void setMultisignalMode(int nMode) {
+				if (espRms <= nMode && nMode <= espMax)
+					esp = (SigProc)nMode;
+				else
+					esp = espMax;
+			}
+			void setType(int nType) {
+				if (etPcoPcv <= nType && nType <= etN)
+					et = (Type)nType;
+				else
+					et = etPcoPcv;
 			}
 
 			void serialize(Archive& ar);
@@ -217,13 +259,15 @@ namespace can2
 		// Operations:
 	public:
 		void compDists();
+		void compDists2(); // Compute distance not between cluster mean but between all cluster members
 		static double norm(const AntexAntenna& a, Metrics& metrics);
-		void clusterize(int level, ClusterMode cm);
-		void clusterizeManual(std::vector<std::vector<RingAntenna*>>& cls, ClusterMode cm);
+		void clusterize(int level, ClusterMode cm, std::map<std::string, bool> * useAnts = nullptr, int maxClust=0);
+		void clusterizeManual(std::vector<std::vector<RingAntenna*>>& cls, std::vector<std::string>& names, ClusterMode cm);
 		Cluster unite(ClusterMode cm, const Cluster& c1, const Cluster * pc2=nullptr);
 		Cluster uniteSh(ClusterMode cm, const Cluster& c1, const Cluster * pc2=nullptr);
 		void addAntennas(const std::vector<std::shared_ptr<RingAntenna>>& ras);
 		void removeAnt(RingAntenna* pa);
+		void swapAntennas(RingAntenna* pa0, RingAntenna* pa1);
 
 		bool allChildsHavePcc(int es) const {
 			auto it = std::find_if(m_ants.begin(), m_ants.end(), [&](const std::shared_ptr<RingAntenna>& a) {

@@ -82,6 +82,7 @@ public:
 	BOOL m_bSimpleMode;
 	int m_nWhatToPlot;
 	BOOL m_bClusterSpread;
+	BOOL m_bClusterRects;
 
 	void enableControls();
 
@@ -103,6 +104,7 @@ public:
 	afx_msg void OnBnClickedButtonRemoveComments();
 	afx_msg void OnBnClickedButtonSave();
 	afx_msg void OnBnClickedButtonLoad();
+	afx_msg void OnCurveFormat();
 };
 
 

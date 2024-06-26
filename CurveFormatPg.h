@@ -34,38 +34,43 @@
 //
 #pragma once
 #include "afxdialogex.h"
+#include "ComboListCtrl.h"
+#include "Plot2d.h"
 
-#include "RingNode.h"
+// CCurveFormatPg dialog
 
-// CRingSourcePg dialog
-
-class CRingSourcePg : public CPropertyPage
+class CCurveFormatPg : public CPropertyPage
 {
-	DECLARE_DYNAMIC(CRingSourcePg)
+	DECLARE_DYNAMIC(CCurveFormatPg)
+
+	struct CurveInfo
+	{
+		int id;
+		std::string name;
+		COLORREF rgb;
+	};
 
 public:
-	CRingSourcePg();   // standard constructor
-	virtual ~CRingSourcePg();
-
+	CCurveFormatPg();   // standard constructor
+	virtual ~CCurveFormatPg();
+	can2::Plot2d* m_pPlot;
+	CComboListCtrl m_lstCurves;
+	std::vector <CurveInfo> m_cis;
+	std::vector <COLORREF> m_colors;
 // Dialog Data
 #ifdef AFX_DESIGN_TIME
-	enum { IDD = IDD_PROPPAGE_RING_SOURCE };
+	enum { IDD = IDD_PROPPAGE_CURVE_FORMAT };
 #endif
-	std::vector<can2::AntexFile*> m_afs;
-	std::shared_ptr<can2::RingNode> m_prn;
-	CListCtrl m_lstSource;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
 	DECLARE_MESSAGE_MAP()
-	virtual BOOL OnInitDialog();
-	afx_msg void OnLvnEndlabeleditListSource(NMHDR* pNMHDR, LRESULT* pResult);
-	virtual void OnOK();
 public:
-	afx_msg void OnClickedButtonAdd();
-	afx_msg void OnClickedButtonRemove();
-	virtual BOOL OnKillActive();
-	afx_msg void OnBnClickedButtonUp();
-	afx_msg void OnBnClickedButtonDown();
+	virtual BOOL OnInitDialog();
+	afx_msg void OnCustomdrawListCurves(NMHDR* pNMHDR, LRESULT* pResult);
+	virtual void OnOK();
+	afx_msg void OnClickListCurves(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg LRESULT PopulateComboList(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnEndlabeleditListCurves(NMHDR* pNMHDR, LRESULT* pResult);
 };

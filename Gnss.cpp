@@ -76,8 +76,8 @@ Gnss::SignalProps Gnss::c_sigs[Gnss::esigInvalid] =
 
 Gnss::BandProps Gnss::c_bands[Gnss::ebMax] =
 {
-	{ Gnss::ebL1, "L1", c_sigs[C01].f, c_sigs[R01].f, RGB(253, 219, 225) },
-	{ Gnss::ebL2, "L2", c_sigs[G02].f, c_sigs[R02].f, RGB(220, 223, 252) },
-	{ Gnss::ebL5, "L5", c_sigs[E05].f, c_sigs[E07].f, RGB(227, 252, 253) },
-	{ Gnss::ebB3E6, "B3E6", c_sigs[C06].f, c_sigs[E06].f, RGB(230, 253, 227) }
+	{ Gnss::ebL1, "L1", c_sigs[C02].f, c_sigs[R01].f, RGB(245, 245, 245) }, // RGB(253, 219, 225) },
+	{ Gnss::ebL2, "L2", c_sigs[G02].f, c_sigs[R02].f, RGB(245, 245, 245) }, //RGB(220, 223, 252) },
+	{ Gnss::ebL5, "L5", c_sigs[E05].f, c_sigs[E07].f, RGB(245, 245, 245) }, //RGB(227, 252, 253) },
+	{ Gnss::ebB3E6, "B3E6", c_sigs[C06].f, c_sigs[E06].f, RGB(245, 245, 245) } //RGB(230, 253, 227) }
 };

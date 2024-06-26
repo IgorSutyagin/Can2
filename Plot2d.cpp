@@ -791,6 +791,12 @@ void Curve2d::createPens(int nStyle, int nWidth, COLORREF clr)
 	m_penGray.CreatePen(nStyle, 1, clr); // nStyle
 }
 
+void Curve2d::createPens()
+{
+	deletePens();
+	m_pen.CreatePen(m_eStyle == eDashed ? PS_DASH : PS_SOLID, m_nWidth, m_rgb);
+}
+
 bool Curve2d::hitTest(CPoint ptClient, const CRect& rectArea, Point2d ptMin, Point2d ptMax) const
 {
 	CRect rc(ptClient.x - 5, ptClient.y - 5, ptClient.x + 5, ptClient.y + 5);
@@ -1253,6 +1259,13 @@ CPoint Curve2d::mapPoint(const Point2d& ptF, const CRect& rectArea, const Point2
 	return CPoint(x, y);
 }
 
+Gdiplus::Rect Curve2d::mapRect(const Rect2d& r, const CRect& rectArea, const Point2d& ptMin, const Point2d& ptMax) const
+{
+	CPoint pt0 = mapPoint(Point2d(r.left(), r.top()), rectArea, ptMin, ptMax);
+	CPoint pt1 = mapPoint(Point2d(r.right(), r.bottom()), rectArea, ptMin, ptMax);
+	return Gdiplus::Rect(Gdiplus::Point(pt0.x, pt0.y), Gdiplus::Size(pt1.x - pt0.x, pt1.y - pt0.y));
+}
+
 void Curve2d::setMarks(std::vector<COLORREF>& clrs, int nMarkSize)
 {
 	ASSERT(m_pts.size() == clrs.size());
@@ -1443,6 +1456,76 @@ void BandCurve2d::draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d p
 	Curve2d::draw(pDC, rectArea, ptMin, ptMax, nPass);
 
 
+}
+
+// End of BandCurve2d implementation
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+// RectCurve2d implementation
+
+/////////////////////////
+// Construction:
+RectCurve2d::RectCurve2d()
+{
+}
+
+RectCurve2d::~RectCurve2d()
+{
+}
+
+/////////////////////////////
+// Operations:
+void RectCurve2d::setData(int nID, LPCTSTR szName, std::vector<Rect2d>& rects)
+{
+	std::vector <Point2d> pts;
+	Curve2d::setData(nID, szName, pts);
+
+	m_rects = rects;
+	for (int i = 0; i < (int)m_rects.size(); i++)
+	{
+		const Rect2d& r = m_rects[i];
+		for (int j = 0; j < 4; j++)
+		{
+			Point2d p = r.corner(j);
+			if (m_ptMin.y > p.y)
+				m_ptMin.y = p.y;
+			if (m_ptMax.y < p.y)
+				m_ptMax.y = p.y;
+			if (m_ptMin.x > p.x)
+				m_ptMin.x = p.x;
+			if (m_ptMax.x < p.x)
+				m_ptMax.x = p.x;
+		}
+	}
+}
+
+void RectCurve2d::draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d ptMax, int nPass)
+{
+	using namespace Gdiplus;
+
+	if (!m_bDrawCurve)
+		return;
+
+	if (nPass == 0)
+	{
+		Graphics grp(pDC->m_hDC);
+
+		GraphicsPath path;
+		for (int i = 0; i < (int)m_rects.size(); i++)
+		{
+			path.StartFigure();
+			Rect r = mapRect(m_rects[i], rectArea, ptMin, ptMax);
+			path.AddRectangle(r);
+			path.CloseFigure();
+		}
+
+		SolidBrush br(Color(100, GetRValue(m_rgb), GetGValue(m_rgb), GetBValue(m_rgb)));
+		//SolidBrush br(Color(255, 0, 0, 200));
+		//Pen pen(Color(255, 0, 0), 1);
+		grp.FillPath(&br, &path);
+		//grp.DrawRectangle(&pen, r);
+	}
 }
 
 // End of BandCurve2d implementation
@@ -1816,6 +1899,22 @@ void PlotTable::draw(CDC* pDC, Plot2d* pPlot)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Plot2d
+
+COLORREF Plot2d::c_stdColors[c_stdColorsNum] =
+{
+	RGB(0xFF, 0x00, 0x00),
+	RGB(0x00, 0xB0, 0x00),
+	RGB(0x00, 0x00, 0xFF),
+	RGB(0xFF, 0x00, 0xFF),
+	RGB(0x00, 0xB0, 0xC0),
+	RGB(0xFF, 0xB0, 0x00),
+	RGB(0xB0, 0x40, 0x00),
+	RGB(0xB0, 0xB0, 0x00),
+	RGB(0xA0, 0xA0, 0xA0),
+	RGB(166, 166, 230),
+	RGB(226, 159, 226),
+	RGB(190, 226, 190)
+};
 
 Plot2d::Plot2d()
 {
@@ -2532,6 +2631,93 @@ void Plot2d::addBand(int nID, LPCTSTR szName, std::vector<Point2d>& pts, std::ve
 	Invalidate();
 }
 
+void Plot2d::addRect(int nID, LPCTSTR szName, std::vector<Rect2d>& rects, int nWidth, COLORREF rgb, bool bSecondary)
+{
+	// Get the number of auto-color curves
+	int nAutoColorNum = 0;
+	for (int i = 0; i < (int)m_curves.size(); i++)
+	{
+		if (m_curves[i]->m_bAutoColor)
+			nAutoColorNum++;
+	}
+
+	for (int i = 0; i < (int)m_curves2.size(); i++)
+	{
+		if (m_curves2[i]->m_bAutoColor)
+			nAutoColorNum++;
+	}
+
+	removeCurve(nID);
+	if (rects.size() <= 0)
+	{
+		return;
+	}
+
+	BOOL bAutoColor = (rgb == 0xFFFFFFFF);
+	std::vector <Curve2d*>& curves = bSecondary ? m_curves2 : m_curves;
+
+	if (bSecondary && rects.size())
+		m_bEnableSecondaryAxis = TRUE;
+
+
+	int nAutoColor = 0;
+	for (int i = 0; i < (int)curves.size(); i++)
+	{
+		BarCurve2d* pCurve = (BarCurve2d*)curves[i];
+		if (pCurve->m_bAutoColor)
+			nAutoColor++;
+	}
+
+	if (curves.size() >= CURVES_MAX)
+	{
+		TRACE("Too many curves\n");
+		return;
+	}
+
+	RectCurve2d* pCurve = new RectCurve2d();
+	pCurve->m_id = nID;
+	pCurve->m_bAutoColor = bAutoColor;
+	pCurve->m_rgb = rgb;
+	pCurve->m_name = szName;
+	pCurve->m_nWidth = nWidth;
+	pCurve->setData(nID, szName, rects);
+	pCurve->m_eStyle = Curve2d::eSolid;
+	pCurve->m_dMaxPointDistance = m_dCurveMaxPointDistance;
+	curves.push_back(pCurve);
+
+	autoScale(m_xAxis.m_auto, m_yAxis.m_auto, m_yAxis2.m_auto);
+
+	nAutoColor = 0;
+	for (int i = 0; i < (int)curves.size(); i++)
+	{
+		Curve2d* pCurve = curves[i];
+
+		if (pCurve->m_bAutoColor)
+		{
+			pCurve->deletePens();
+
+			short hue = (short)((220.0 - 0.0) / nAutoColorNum * nAutoColor + 0);
+			if (hue < 0)
+				hue = 0;
+
+			COLORREF clr = ColorHLS((byte)hue, 120, 240); // hls2rgb((WORD)hue, 120, 240);
+
+			pCurve->createPens(PS_SOLID, pCurve->m_nWidth, clr); // m_pen.CreatePen (
+		}
+		else
+		{
+			//CPen * pPen = &(pCurve->m_pen); //m_penCurves[i];
+			//pPen->DeleteObject ();
+			pCurve->deletePens();
+			pCurve->createPens(PS_SOLID, pCurve->m_nWidth, pCurve->m_rgb);
+		}
+
+		if (pCurve->m_bAutoColor)
+			nAutoColor++;
+	}
+	Invalidate();
+}
+
 void Plot2d::setCurveMaxPointDistance(double dMaxDistance, int nID, bool bSecondary)
 {
 	std::vector <Curve2d*>& curves = bSecondary ? m_curves2 : m_curves;
@@ -3053,6 +3239,19 @@ void Plot2d::drawAreas(CDC* pDC)
 		CRect r(pt0, pt1);
 
 		pDC->FillSolidRect(r, a.clr);
+
+		{
+			CFont* pOldFont = (CFont*)pDC->SelectObject(&m_xAxis.m_font);
+			CRect rt(pt0.x, pt0.y+5, pt1.x, pt0.y+5);
+			int nHeight = pDC->DrawText(a.szTitle, strlen(a.szTitle), rt, DT_CALCRECT);
+			int nWidth = rt.Width();
+			int nCenter = (pt0.x + pt1.x) / 2;
+			rt.bottom += nHeight;
+			rt.left = nCenter - nWidth/2;
+			rt.right = nCenter + nWidth / 2;
+			pDC->DrawText(a.szTitle, strlen(a.szTitle), rt, DT_CENTER);
+			pDC->SelectObject(pOldFont);
+		}
 	}
 	pDC->SetBkColor(clrOld);
 }
@@ -3270,10 +3469,16 @@ void Plot2d::drawLegend(CDC* pDC, BOOL bPrimary)
 	{
 	default:
 	case elaTopLeft:
-		rLegend.OffsetRect(rectPlot.left + 2, rectPlot.top);
+		if (m_areas.size() > 0)
+			rLegend.OffsetRect(rectPlot.left + 5, rectPlot.top + 40);
+		else
+			rLegend.OffsetRect(rectPlot.left + 5, rectPlot.top);
 		break;
 	case elaTopRight:
-		rLegend.OffsetRect(rectPlot.right - rLegend.Width(), rectPlot.top);
+		if (m_areas.size() > 0)
+			rLegend.OffsetRect(rectPlot.right - rLegend.Width(), rectPlot.top+40);
+		else
+			rLegend.OffsetRect(rectPlot.right - rLegend.Width(), rectPlot.top);
 		break;
 	case elaBottomRight:
 		rLegend.OffsetRect(rectPlot.right - rLegend.Width(), rectPlot.bottom - rLegend.Height());
@@ -4317,8 +4522,8 @@ void Plot2d::OnRButtonUp(UINT nFlags, CPoint point)
 	if (hitTestLegend(TRUE, point))
 	{
 		m_eLegendAlign = (CLegendAlign)((m_eLegendAlign + 1) % elaMax);
-		if (m_eLegendAlign == m_eLegendAlign2)
-			m_eLegendAlign = (CLegendAlign)((m_eLegendAlign + 1) % elaMax);
+		//if (m_eLegendAlign == m_eLegendAlign2)
+		//	m_eLegendAlign = (CLegendAlign)((m_eLegendAlign + 1) % elaMax);
 
 		Invalidate(TRUE);
 		return;
@@ -4669,5 +4874,20 @@ void Plot2d::OnMouseMove(UINT nFlags, CPoint point)
 	CWnd::OnMouseMove(nFlags, point);
 }
 
+BOOL Plot2d::OnCommand(WPARAM wParam, LPARAM lParam)
+{
+	if (wParam == ID_PLOT_COPY_TO_CLIPBOARD)
+	{
+		OnCopyToClipboard();
+		return CWnd::OnCommand(wParam, lParam);
+	}
+
+	CWnd * pParent = GetParent();
+	if (pParent != nullptr)
+	{
+		return pParent->SendMessage(WM_COMMAND, wParam, lParam);
+	}
+	return FALSE;
+}
 // End of Plot2d implementation
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

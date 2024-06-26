@@ -64,6 +64,8 @@ public:
 	CImageList* m_pDragImage;	//Image list to be used for dragging
 	CImageList m_imgList;
 	std::vector<std::vector<can2::RingAntenna*>> m_cls;
+	std::vector<std::string> m_names;
+	can2::TreeCursor m_tClicked;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
@@ -76,9 +78,12 @@ public:
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	void setDefaultCursor();
-	can2::TreeCursor moveChildItem(can2::TreeCursor tItem, can2::TreeCursor tNewParent, HTREEITEM hAfter);
+	can2::TreeCursor copyChildItem(can2::TreeCursor tItem, can2::TreeCursor tNewParent, HTREEITEM hAfter, bool bDelOrg);
 	bool canDrop(can2::TreeCursor t) const;
 	bool canDrag(can2::TreeCursor t) const;
 	afx_msg void OnBnClickedButtonUp();
 	afx_msg void OnBnClickedButtonDown();
+	afx_msg void OnRclickTreeCluster(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnManualclusterSetclustername();
+	afx_msg void OnUpdateManualclusterSetclustername(CCmdUI* pCmdUI);
 };

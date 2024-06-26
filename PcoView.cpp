@@ -330,7 +330,7 @@ void CPcoView::OnRadioUp()
 
 void CPcoView::OnChangeEditEleMask()
 {
-	SetTimer(1, 1, NULL);
+	SetTimer(1, 500, NULL);
 }
 
 void CPcoView::OnClickedRadioMode()

@@ -37,6 +37,7 @@
 #include "Can2.h"
 #include "afxdialogex.h"
 #include "ManualClusterDlg.h"
+#include "PromptNameDlg.h"
 
 
 // CManualClusterDlg dialog
@@ -66,6 +67,9 @@ BEGIN_MESSAGE_MAP(CManualClusterDlg, CDialogEx)
 	ON_WM_LBUTTONUP()
 	ON_BN_CLICKED(IDC_BUTTON_UP, &CManualClusterDlg::OnBnClickedButtonUp)
 	ON_BN_CLICKED(IDC_BUTTON_DOWN, &CManualClusterDlg::OnBnClickedButtonDown)
+	ON_NOTIFY(NM_RCLICK, IDC_TREE_CLUSTER, &CManualClusterDlg::OnRclickTreeCluster)
+	ON_COMMAND(ID_MANUALCLUSTER_SETCLUSTERNAME, &CManualClusterDlg::OnManualclusterSetclustername)
+	ON_UPDATE_COMMAND_UI(ID_MANUALCLUSTER_SETCLUSTERNAME, &CManualClusterDlg::OnUpdateManualclusterSetclustername)
 END_MESSAGE_MAP()
 
 
@@ -134,7 +138,10 @@ void CManualClusterDlg::OnOK()
 				as.push_back(pa);
 			}
 			if (as.size() != 0)
+			{
 				m_cls.push_back(as);
+				m_names.push_back(t.getText().c_str());
+			}
 		}
 		else
 		{
@@ -143,6 +150,7 @@ void CManualClusterDlg::OnOK()
 			ASSERT(pa->isRingAntenna());
 			as.push_back(pa);
 			m_cls.push_back(as);
+			m_names.push_back(pa->getName().c_str());
 		}
 	}
 
@@ -270,8 +278,11 @@ void CManualClusterDlg::OnLButtonUp(UINT nFlags, CPoint point)
 
 		m_tree.Expand(m_tDrop, TVE_EXPAND);
 
-		HTREEITEM htiNew = moveChildItem(m_tDrag, m_tDrop, TVI_LAST);
-		m_tree.DeleteItem(m_tDrag);
+		bool bDel = !(::GetKeyState(VK_CONTROL) & 0x8000);
+
+		HTREEITEM htiNew = copyChildItem(m_tDrag, m_tDrop, TVI_LAST, bDel);
+		if (bDel)
+			m_tree.DeleteItem(m_tDrag);
 		m_tree.SelectItem(htiNew);
 	}
 
@@ -322,7 +333,7 @@ void CManualClusterDlg::setDefaultCursor()
 	cursor_no = ::LoadCursor(NULL, IDC_NO);
 }
 
-can2::TreeCursor CManualClusterDlg::moveChildItem(can2::TreeCursor tItem, can2::TreeCursor tNewParent, HTREEITEM hAfter)
+can2::TreeCursor CManualClusterDlg::copyChildItem(can2::TreeCursor tItem, can2::TreeCursor tNewParent, HTREEITEM hAfter, bool bDelOrg)
 {
 
 	TV_INSERTSTRUCT tvstruct;
@@ -351,38 +362,27 @@ can2::TreeCursor CManualClusterDlg::moveChildItem(can2::TreeCursor tItem, can2::
 
 	//now delete the old item
 	can2::TreeCursor tOldCluster = tItem.getParent();
-	m_tree.DeleteItem(tItem);
-	if (tOldCluster)
+	if (bDelOrg)
 	{
-		CString strName;
-		for (can2::TreeCursor t = tOldCluster.getChild(); t; t = t.getNextSibling())
+		m_tree.DeleteItem(tItem);
+		if (tOldCluster)
 		{
-			if (strName.IsEmpty())
-				strName = "(";
-			strName += t.getText().c_str();
-			if (t.getNextSibling())
-				strName += ",";
-		}
-		if (strName.IsEmpty())
-			tOldCluster.deleteItem();
-		else
-		{
-			strName += ")";
-			tOldCluster.setText(strName);
-		}
-
-		bool bFound = false;
-		for (can2::TreeCursor t = m_tree.getRootItem(); t; t = t.getNextSibling())
-		{
-			if (t.getText() == "New Cluster" && t.getData() == 1)
+			CString strName;
+			for (can2::TreeCursor t = tOldCluster.getChild(); t; t = t.getNextSibling())
 			{
-				bFound = true;
-				break;
+				if (strName.IsEmpty())
+					strName = "(";
+				strName += t.getText().c_str();
+				if (t.getNextSibling())
+					strName += ",";
 			}
-		}
-		if (!bFound)
-		{
-			m_tree.insertItem("New Cluster").setData(1);
+			if (strName.IsEmpty())
+				tOldCluster.deleteItem();
+			else
+			{
+				strName += ")";
+				tOldCluster.setText(strName);
+			}
 		}
 	}
 
@@ -401,21 +401,20 @@ can2::TreeCursor CManualClusterDlg::moveChildItem(can2::TreeCursor tItem, can2::
 		}
 		strName += ")";
 		tCluster.setText(strName);
+	}
 
-		bool bFound = false;
-		for (can2::TreeCursor t = m_tree.getRootItem(); t; t = t.getNextSibling())
+	bool bFound = false;
+	for (can2::TreeCursor t = m_tree.getRootItem(); t; t = t.getNextSibling())
+	{
+		if (t.getText() == "New Cluster" && t.getData() == 1)
 		{
-			if (t.getText() == "New Cluster" && t.getData() == 1)
-			{
-				bFound = true;
-				break;
-			}
+			bFound = true;
+			break;
 		}
-
-		if (!bFound)
-		{
-			m_tree.insertItem("New Cluster").setData(1);
-		}
+	}
+	if (!bFound)
+	{
+		m_tree.insertItem("New Cluster").setData(1);
 	}
 
 	return tNewItem;
@@ -492,4 +491,75 @@ void CManualClusterDlg::OnBnClickedButtonDown()
 	t.setData(ts.getData());
 	ts.deleteItem();
 	t.select();
+}
+
+
+void CManualClusterDlg::OnRclickTreeCluster(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	CPoint ptPos = GetMessagePos();
+	m_tree.ScreenToClient(&ptPos);
+
+	m_tClicked = m_tree.hitTest(ptPos);
+
+	CMenu wndMenu;
+	if (!wndMenu.LoadMenu(IDR_POPUP))
+		return;
+
+	// Get the File popup menu from the top level menu.
+	CMenu* pMenu = wndMenu.GetSubMenu(1);
+
+	// Convert the mouse location to screen coordinates before passing
+	// it to the TrackPopupMenu() function.
+	m_tree.ClientToScreen(&ptPos);
+
+	// Display the File popup menu as a floating popup menu in the
+	// client area of the main application window.
+	pMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_LEFTBUTTON,
+		ptPos.x,
+		ptPos.y,
+		this);    // owner is the main application window
+	*pResult = 1;
+}
+
+
+void CManualClusterDlg::OnManualclusterSetclustername()
+{
+	if (!m_tClicked)
+		return;
+
+	DWORD dwData = m_tClicked.getData();
+	if (dwData == 1)
+	{
+		CPromptNameDlg dlg(this);
+		dlg.m_strName = m_tClicked.getText().c_str();
+
+		if (dlg.DoModal() != IDOK)
+			return;
+
+		m_tClicked.setText(dlg.m_strName);
+	}
+	else
+	{
+		can2::RingAntenna* pa = (can2::RingAntenna*)dwData;
+		if (!pa->isRingAntenna())
+			return;
+
+		CPromptNameDlg dlg(this);
+		dlg.m_strName = pa->getName().c_str();
+
+		if (dlg.DoModal() != IDOK)
+			return;
+
+		pa->m_alias = dlg.m_strName;
+		m_tClicked.setText(pa->getName().c_str());
+	}
+}
+
+
+void CManualClusterDlg::OnUpdateManualclusterSetclustername(CCmdUI* pCmdUI)
+{
+	if (m_tClicked)
+		pCmdUI->Enable(TRUE);
+	else
+		pCmdUI->Enable(FALSE);
 }

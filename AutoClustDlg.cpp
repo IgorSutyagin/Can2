@@ -32,40 +32,99 @@
 // 	OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // 	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-#pragma once
+
+#include "pch.h"
+#include "Can2.h"
 #include "afxdialogex.h"
+#include "AutoClustDlg.h"
 
-#include "RingNode.h"
 
-// CRingSourcePg dialog
+// CAutoClustDlg dialog
 
-class CRingSourcePg : public CPropertyPage
+std::map<std::string, BOOL> CAutoClustDlg::c_mapUse;
+
+IMPLEMENT_DYNAMIC(CAutoClustDlg, CDialogEx)
+
+CAutoClustDlg::CAutoClustDlg(CWnd* pParent /*=nullptr*/)
+	: CDialogEx(IDD_DIALOG_AUTO_CLUSTER, pParent)
 {
-	DECLARE_DYNAMIC(CRingSourcePg)
+	m_nLevel = 0;
+}
 
-public:
-	CRingSourcePg();   // standard constructor
-	virtual ~CRingSourcePg();
+CAutoClustDlg::~CAutoClustDlg()
+{
+}
 
-// Dialog Data
-#ifdef AFX_DESIGN_TIME
-	enum { IDD = IDD_PROPPAGE_RING_SOURCE };
-#endif
-	std::vector<can2::AntexFile*> m_afs;
-	std::shared_ptr<can2::RingNode> m_prn;
-	CListCtrl m_lstSource;
+void CAutoClustDlg::DoDataExchange(CDataExchange* pDX)
+{
+	CDialogEx::DoDataExchange(pDX);
 
-protected:
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+	DDX_Control(pDX, IDC_LIST_ANTS, m_lst);
+	DDX_Control(pDX, IDC_COMBO_LEVEL, m_cmbLevel);
+}
 
-	DECLARE_MESSAGE_MAP()
-	virtual BOOL OnInitDialog();
-	afx_msg void OnLvnEndlabeleditListSource(NMHDR* pNMHDR, LRESULT* pResult);
-	virtual void OnOK();
-public:
-	afx_msg void OnClickedButtonAdd();
-	afx_msg void OnClickedButtonRemove();
-	virtual BOOL OnKillActive();
-	afx_msg void OnBnClickedButtonUp();
-	afx_msg void OnBnClickedButtonDown();
-};
+
+BEGIN_MESSAGE_MAP(CAutoClustDlg, CDialogEx)
+END_MESSAGE_MAP()
+
+
+// CAutoClustDlg message handlers
+
+
+BOOL CAutoClustDlg::OnInitDialog()
+{
+	CDialogEx::OnInitDialog();
+
+	while (m_lst.DeleteColumn(0));
+
+	m_lst.AddColumn("Clibration", 0);
+	m_lst.SetExtendedStyle(m_lst.GetExtendedStyle() | LVS_EX_CHECKBOXES);
+	m_lst.SetExtendedStyle(m_lst.GetExtendedStyle() | LVS_EX_FULLROWSELECT);
+
+	for (int i = 0; i < (int)m_prn->m_ants.size(); i++)
+	{
+		can2::RingAntenna* pa = m_prn->m_ants[i].get();
+		int index = m_lst.AddItem(i, 0, pa->getName().c_str());
+		if (c_mapUse.find(pa->getName()) != c_mapUse.end())
+		{
+			m_lst.SetCheck(index, c_mapUse[pa->getName()]);
+		}
+		else
+		{
+			m_lst.SetCheck(index, TRUE);
+		}
+
+		CString str;
+		str.Format("%i", i);
+		index = m_cmbLevel.AddString(str);
+		m_cmbLevel.SetItemData(index, i);
+		if (i == m_nLevel)
+			m_cmbLevel.SetCurSel(index);
+	}
+
+
+
+	return TRUE;  // return TRUE unless you set the focus to a control
+	// EXCEPTION: OCX Property Pages should return FALSE
+}
+
+
+void CAutoClustDlg::OnOK()
+{
+	UpdateData(TRUE);
+
+	m_mapUse.clear();
+	for (int i = 0; i < m_lst.GetItemCount(); i++)
+	{
+		can2::RingAntenna* pa = m_prn->m_ants[i].get();
+		m_mapUse[pa->getName()] = m_lst.GetCheck(i) ? true : false;
+		c_mapUse[pa->getName()] = m_lst.GetCheck(i);
+	}
+
+	int sel = m_cmbLevel.GetCurSel();
+	if (sel < 0)
+		return;
+	m_nLevel = m_cmbLevel.GetItemData(sel);
+
+	CDialogEx::OnOK();
+}

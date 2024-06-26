@@ -165,6 +165,18 @@
     <ClInclude Include="PromptTitleDlg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CurveFormatPg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ComboListCtrl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AutoClustDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PromptNameDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Can2.cpp">
@@ -297,6 +309,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="PromptTitleDlg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CurveFormatPg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ComboListCtrl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AutoClustDlg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PromptNameDlg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

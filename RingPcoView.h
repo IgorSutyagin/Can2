@@ -59,6 +59,8 @@ public:
 	can2::Plot2d m_wndPlot;
 	double m_eleMask;
 	CFont m_font;
+	BOOL m_bOffsetFromAntex;
+	BOOL m_bMarker;
 
 	double m_yMax;
 	double m_yMin;
@@ -96,5 +98,8 @@ public:
 	afx_msg void OnBnClickedButtonLoad();
 
 	afx_msg void OnBnClickedButtonSetPlotTitle();
+	afx_msg void OnBnClickedOffsetFromAntex();
+
+	afx_msg void OnCurveFormat();
 };
 

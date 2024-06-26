@@ -80,6 +80,7 @@ namespace can2
 			void serialize(Archive& ar);
 		};
 		Plot2dSettings plot2d[ep2Max];
+		std::map<std::string, COLORREF> plot2dColors;
 
 		void savePlot3d(const Node* node, const Plot3d * plot);
 		void loadPlot3d(const Node* node, Plot3d* plot) const;

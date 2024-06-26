@@ -107,7 +107,7 @@ namespace can2
 		virtual Point3d calcOffset(can2::Gnss::Signal es, double eleMask, OffsetMode em, double * pro) const { return Point3d(NAN, NAN, NAN); }
 
 		// Returns offset loaded from the ANTEX file
-		virtual Point3d getOffset(can2::Gnss::Signal es) const { return Point3d(NAN, NAN, NAN); }
+		virtual Point3d getOffset(can2::Gnss::Signal es, double * pro=nullptr) const { return Point3d(NAN, NAN, NAN); }
 
 		virtual void serialize(Archive& ar) {
 			if (ar.isStoring())

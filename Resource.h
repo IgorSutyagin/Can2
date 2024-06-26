@@ -97,6 +97,9 @@
 #define IDD_ANTEX_PCO_TABLE             319
 #define IDD_DIALOG_MANUAL_CLUSTER       320
 #define IDD_DIALOG_PROMPT_TITLE         322
+#define IDD_PROPPAGE_CURVE_FORMAT       323
+#define IDD_DIALOG_AUTO_CLUSTER         325
+#define IDD_DIALOG_PROMPT_NAME          327
 #define IDC_COMBO_SIGNAL                1000
 #define IDC_EDIT_MIN                    1001
 #define IDC_EDIT_MAX                    1002
@@ -114,6 +117,7 @@
 #define IDC_CUSTOM_DISTS                1008
 #define IDC_CHECK_SIMPLE                1009
 #define IDC_CHECK_POLAR                 1010
+#define IDC_COMBO_MAX_CLUST             1010
 #define IDC_CUSTOM_PLOT                 1011
 #define IDC_LIST_PCO                    1011
 #define IDC_CHECK_0GRID                 1012
@@ -131,8 +135,17 @@
 #define IDC_BUTTON_UP                   1020
 #define IDC_RADIO_CLUST_ONLYALL         1021
 #define IDC_BUTTON_DOWN                 1021
-#define IDC_CHECK1                      1021
 #define IDC_CHECK_CLUSTER_SPREAD        1021
+#define IDC_CHECK_CLUSTER_RECTS         1022
+#define IDC_CHECK_OFFSET_FROM_ANTEX     1023
+#define IDC_LIST_CURVES                 1024
+#define IDC_CHECK_OFFSET_FROM_ANTEX2    1024
+#define IDC_CHECK_MARKER                1024
+#define IDC_RADIO_RMS                   1025
+#define IDC_RADIO_MAX                   1026
+#define IDC_LIST_ANTS                   1026
+#define IDC_COMBO_LEVEL                 1027
+#define IDC_EDIT_NAME                   1028
 #define IDC_BUTTON_SAVE                 1071
 #define IDC_BUTTON_LOAD                 1072
 #define IDC_EDIT_TITLE                  1082
@@ -166,6 +179,7 @@
 #define IDC_RADIO_HPCO                  1252
 #define IDC_EDIT_Y_DIVS                 1253
 #define IDC_EDIT_X_DIVS                 1254
+#define IDC_RADIO_R                     1255
 #define IDC_BUTTON_ADD_COMMENT          1256
 #define IDC_BUTTON_REMOVE_COMMENTS      1257
 #define IDC_RADIO_PCO                   1258
@@ -181,14 +195,16 @@
 #define ID_RING_PROPERTIES              32778
 #define ID_RING_SAVEAS                  32779
 #define ID_RING_REMOVE                  32780
+#define ID_PLOT2D_CURVEFORMAT           32781
+#define ID_MANUALCLUSTER_SETCLUSTERNAME 32782
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        324
-#define _APS_NEXT_COMMAND_VALUE         32781
-#define _APS_NEXT_CONTROL_VALUE         1022
+#define _APS_NEXT_RESOURCE_VALUE        329
+#define _APS_NEXT_COMMAND_VALUE         32783
+#define _APS_NEXT_CONTROL_VALUE         1029
 #define _APS_NEXT_SYMED_VALUE           310
 #endif
 #endif

@@ -158,7 +158,7 @@ void Settings::Plot2dSettings::serialize(Archive& ar)
 
 void Settings::serialize(Archive& ar)
 {
-	DWORD dwVer = 2;
+	DWORD dwVer = 3;
 	if (ar.isStoring())
 	{
 		ar << dwVer;
@@ -181,6 +181,14 @@ void Settings::serialize(Archive& ar)
 		for (int i = 0; i < nep2Max; i++)
 		{
 			plot2d[i].serialize(ar);
+		}
+
+		int nColors = plot2dColors.size();
+		ar << nColors;
+		for (auto it = plot2dColors.begin(); it != plot2dColors.end(); it++)
+		{
+			ar << it->first;
+			ar << it->second;
 		}
 	}
 	else
@@ -207,6 +215,19 @@ void Settings::serialize(Archive& ar)
 		for (int i = 0; i < nep2Max; i++)
 		{
 			plot2d[i].serialize(ar);
+		}
+
+		if (dwVer < 3)
+			return;
+		int nColors = 0;
+		ar >> nColors;
+		for (int i = 0; i < nColors; i++)
+		{
+			std::string str;
+			ar >> str;
+			COLORREF clr;
+			ar >> clr;
+			plot2dColors[str] = clr;
 		}
 
 	}

@@ -207,7 +207,8 @@ namespace can2
 		{
 			eatCurve = 0,
 			eatBarCurve = 1,
-			eatBandCurve = 2
+			eatBandCurve = 2,
+			eatRectCurve = 3
 		};
 
 		virtual ArchType getArchType() const {
@@ -239,6 +240,7 @@ namespace can2
 
 		void deletePens();
 		void createPens(int nStyle, int nWidth, COLORREF clr);
+		void createPens();
 		bool hitTest(CPoint pt, const CRect& rectArea, Point2d ptMin, Point2d ptMax) const;
 		std::string toString(LPCTSTR szArgName, Axis2d::Format eax) const;
 		bool fromString(LPCTSTR szData);
@@ -259,6 +261,7 @@ namespace can2
 		void drawLegendLine(CDC& dc, CRect rc);
 		CPoint mapPoint(int nIndex, const CRect& rectArea, const Point2d& ptMin, const Point2d& ptMax) const;
 		CPoint mapPoint(const Point2d& ptF, const CRect& rectArea, const Point2d& ptMin, const Point2d& ptMax) const;
+		Gdiplus::Rect mapRect(const Rect2d& r, const CRect& rectArea, const Point2d& ptMin, const Point2d& ptMax) const;
 		void setMarks(std::vector<COLORREF>& clrs, int nMarkSize);
 		void setMarks(std::vector<COLORREF>& clrs, std::vector<COLORREF>& clrs2, int nMarkSize);
 
@@ -320,6 +323,31 @@ namespace can2
 
 	};
 	// End of BandCurve interface
+	//////////////////////////////////////////////////////////////////////////////
+
+	//////////////////////////////////////////////////////////////////////////////
+	// RectCurve2d interface - a number of rectangles
+	class RectCurve2d : public Curve2d
+	{
+	// Consturction:
+	public:
+		RectCurve2d();
+		~RectCurve2d();
+
+		virtual ArchType getArchType() const {
+			return eatRectCurve;
+		}
+
+	// Attributes:
+	public:
+		std::vector <Rect2d> m_rects;
+
+	// Operations:
+	public:
+		void setData(int nID, LPCTSTR szName, std::vector<Rect2d>& rects);
+		virtual void draw(CDC* pDC, const CRect& rectArea, Point2d ptMin, Point2d ptMax, int nPass);
+	};
+	// End of RectCurve2d interface
 	//////////////////////////////////////////////////////////////////////////////
 
 	/////////////////////////////////////////////////////////////////////////////
@@ -597,6 +625,11 @@ namespace can2
 		CMode m_eMode;
 		//CPen * m_penCurves[CURVES_MAX];
 		COLORREF m_clrCurves[CURVES_MAX];
+		static const int c_stdColorsNum = 12;
+		static COLORREF c_stdColors[c_stdColorsNum];
+		static COLORREF getStdColor(int nc) {
+			return c_stdColors[nc % c_stdColorsNum];
+		}
 
 		bool m_bSubclassFromCreate;
 		bool m_bDoubleBuffer;
@@ -740,6 +773,7 @@ namespace can2
 		void addPolarCurve(int nID, LPCTSTR szName, std::vector<Point2d>& pts, int nWidth = 1, Curve2d::Style eStyle = Curve2d::eSolid, COLORREF rgb = 0xFFFFFFFF);
 		void addBar(int nID, LPCTSTR szName, std::vector <Point2d>& pts, std::vector <double>& dWidths, std::vector <double>& dbs, int nWidth = 1, Curve2d::Style eStyle = Curve2d::eSolid, COLORREF rgb = 0xFFFFFFFF, bool bSecondary = false);
 		void addBand(int nID, LPCTSTR szName, std::vector<Point2d>& pts, std::vector<Point2d>& ptMinMax, int nWidth = 1, COLORREF rgb = 0xFFFFFFFF, bool bSecondary = false);
+		void addRect(int nID, LPCTSTR szName, std::vector<Rect2d>& rets, int nWidth = 1, COLORREF rgb = 0xFFFFFFFF, bool bSecondary = false);
 		void setCurveMaxPointDistance(double dMaxDistance, int nID, bool bSecondary);
 		void setCurveStyle(int nID, Curve2d::Style eStyle, int nWidth, bool bSecondary);
 		void addCircle(int nID, double x, double y, double rad, COLORREF clr = 0, int nWidth = 1, int nStyle = PS_SOLID);
@@ -842,6 +876,7 @@ namespace can2
 	public:
 		afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 		afx_msg void OnCopyToClipboard();
+		virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);
 	};
 
 	// End of Plot2d interface

@@ -39,6 +39,8 @@
 #include "RingFrm.h"
 #include "RingNode.h"
 #include "RingBar.h"
+#include "CurveFormatPg.h"
+#include "Settings.h"
 
 // CRingDifView
 CRingDoc* CRingDifView::GetDocument() const
@@ -67,7 +69,8 @@ CRingDifView::CRingDifView()
 	, m_bxAuto(TRUE)
 	, m_yDivs(10)
 	, m_xDivs(10)
-	, m_bClusterSpread (FALSE)
+	, m_bClusterSpread(TRUE)
+	, m_bClusterRects(TRUE)
 {
 	m_bNeedInit = true;
 	m_nRingOffsetMode = can2::AntexAntenna::eSinAndCos;
@@ -97,12 +100,14 @@ void CRingDifView::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_Y_DIVS, m_yDivs);
 	DDX_Text(pDX, IDC_EDIT_X_DIVS, m_xDivs);
 	DDX_Check(pDX, IDC_CHECK_CLUSTER_SPREAD, m_bClusterSpread);
+	DDX_Check(pDX, IDC_CHECK_CLUSTER_RECTS, m_bClusterRects);
 }
 
 BEGIN_MESSAGE_MAP(CRingDifView, CFormView)
 	ON_WM_SIZE()
 	ON_BN_CLICKED(IDC_CHECK_SIMPLE, &CRingDifView::OnClickedRadioOffsetMode)
 	ON_BN_CLICKED(IDC_CHECK_CLUSTER_SPREAD, &CRingDifView::OnClickedRadioOffsetMode)
+	ON_BN_CLICKED(IDC_CHECK_CLUSTER_RECTS, &CRingDifView::OnClickedRadioOffsetMode)
 	ON_BN_CLICKED(IDC_RADIO_NOWEIGHT, &CRingDifView::OnClickedRadioOffsetMode)
 	ON_BN_CLICKED(IDC_RADIO_ONE, &CRingDifView::OnClickedRadioOffsetMode)
 	ON_BN_CLICKED(IDC_RADIO_SINANDCOS, &CRingDifView::OnClickedRadioOffsetMode)
@@ -126,6 +131,8 @@ BEGIN_MESSAGE_MAP(CRingDifView, CFormView)
 	ON_BN_CLICKED(IDC_BUTTON_REMOVE_COMMENTS, &CRingDifView::OnBnClickedButtonRemoveComments)
 	ON_BN_CLICKED(IDC_BUTTON_SAVE, &CRingDifView::OnBnClickedButtonSave)
 	ON_BN_CLICKED(IDC_BUTTON_LOAD, &CRingDifView::OnBnClickedButtonLoad)
+
+	ON_COMMAND(ID_PLOT2D_CURVEFORMAT, &OnCurveFormat)
 END_MESSAGE_MAP()
 
 
@@ -386,6 +393,8 @@ void CRingDifView::OnInitialUpdate()
 	m_wndPlot.initControl(this);
 	m_wndPlot.setLegendFont(&m_font);
 	m_wndPlot.setMenuIDs(IDR_POPUP, 0, NULL);
+	m_wndPlot.setAxisPrecision(TRUE, 0);
+	m_wndPlot.setAxisPrecision(FALSE, 1);
 
 	enableControls();
 
@@ -601,6 +610,7 @@ void getClusterSpread(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, con
 	}
 	else
 	{
+		bool bSymVal = nWhatToPlot == 2 || nWhatToPlot == 4 || nWhatToPlot == 5;
 		std::vector<std::map<can2::Gnss::Signal, can2::Point3d>> offs;
 		for (int nc = 0; nc < (int)ras.size(); nc++)
 		{
@@ -659,13 +669,209 @@ void getClusterSpread(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, con
 							mapSpread[f].x = val;
 						if (mapSpread[f].y < val)
 							mapSpread[f].y = val;
+
+						if (bSymVal)
+						{
+							val *= -1;
+							if (mapSpread[f].x > val)
+								mapSpread[f].x = val;
+							if (mapSpread[f].y < val)
+								mapSpread[f].y = val;
+						}
 					}
 					else
 					{
-						mapSpread[f] = can2::Point2d(val, val);
+						
+						if (bSymVal)
+							mapSpread[f] = can2::Point2d(-fabs(val), fabs(val));
+						else
+							mapSpread[f] = can2::Point2d(val, val);
 					}
 				}
 			}
+		}
+	}
+}
+
+void getClusterRects(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, const can2::RingNode::Metrics& m, std::vector<can2::Rect2d>& rects)
+{
+	rects.clear();
+	for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+	{
+		double fMin, fMax;
+		can2::Gnss::getBand(nb, fMin, fMax);
+		rects.push_back(can2::Rect2d(fMin / 1000000, NAN, fMax / 1000000, NAN));
+	}
+
+	bool useBands[can2::Gnss::Band::ebMax];
+	for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+		useBands[nb] = false;
+
+	{
+		int nSigs[can2::Gnss::esigInvalid];
+		for (int i = 0; i < can2::Gnss::esigInvalid; i++)
+			nSigs[i] = 0;
+		for (int na = 0; na < (int)ras.size(); na++)
+		{
+			const can2::RingAntenna* pa = ras[na];
+			for (int nf = 0; nf < can2::Gnss::esigInvalid; nf++)
+			{
+				can2::Gnss::Signal es = (can2::Gnss::Signal)nf;
+				if (pa->hasPcc(es))
+				{
+					nSigs[es]++;
+				}
+			}
+		}
+
+		for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+		{
+			for (int nf = 0; nf < can2::Gnss::esigInvalid; nf++)
+			{
+				can2::Gnss::Signal es = (can2::Gnss::Signal)nf;
+				if (can2::Gnss::getBand(es) != nb)
+					continue;
+				if (nSigs[es] > 2)
+				{
+					useBands[nb] = true;
+					break;
+				}
+			}
+		}
+	}
+
+	if (nWhatToPlot == 0)
+	{
+		for (int nc0 = 0; nc0 < (int)ras.size(); nc0++)
+		{
+			const can2::RingAntenna* pa0 = ras[nc0];
+			for (int nc1 = nc0 + 1; nc1 < (int)ras.size(); nc1++)
+			{
+				can2::RingAntenna* pa1 = ras[nc1];
+
+				can2::AntexAntenna* padif = (can2::AntexAntenna*)pa1->subtract(pa0);
+
+				for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+				{
+					if (!useBands[nb])
+						continue;
+
+					can2::Rect2d& r = rects[nb];
+
+					for (int nf = can2::Gnss::G01; nf < can2::Gnss::esigInvalid; nf++)
+					{
+						can2::Gnss::Signal eft = (can2::Gnss::Signal)nf;
+						if (can2::Gnss::getBand(eft) != nb)
+							continue;
+
+						if (!padif->hasPcc(eft))
+							continue;
+
+						double d = padif->calcNorm(eft, m.em, m.bSimpleMode) * 1000;
+						if (isnan(r.pt.y))
+							r.pt.y = d;
+						if (isnan(r.s.cy))
+							r.s.cy = d - r.pt.y;
+						if (r.pt.y > d)
+						{
+							r.s.cy += r.pt.y - d;
+							r.pt.y = d;
+						}
+						if (r.top() < d)
+							r.s.cy = d - r.pt.y;
+					}
+				}
+
+				delete padif;
+			}
+		}
+	}
+	else
+	{
+		//bool bSymVal = nWhatToPlot == 2 || nWhatToPlot == 4 || nWhatToPlot == 5;
+		std::vector<std::map<can2::Gnss::Signal, can2::Point3d>> offs;
+		for (int nc = 0; nc < (int)ras.size(); nc++)
+		{
+			can2::RingAntenna* pa = ras[nc];
+
+			std::map<can2::Gnss::Signal, can2::Point3d> antOffs;
+			for (int nf = can2::Gnss::G01; nf < can2::Gnss::esigInvalid; nf++)
+			{
+				can2::Gnss::Signal eft = (can2::Gnss::Signal)nf;
+
+				if (!pa->hasPcc(eft))
+					continue;
+
+				can2::Point3d off = pa->calcOffset(eft, 0.0, m.em);
+				if (!off.isValid())
+					continue;
+				antOffs[eft] = off;
+			}
+			offs.push_back(antOffs);
+		}
+
+		for (int nc0 = 0; nc0 < (int)ras.size(); nc0++)
+		{
+			can2::RingAntenna* pa0 = ras[nc0];
+			std::map<can2::Gnss::Signal, can2::Point3d>& a0 = offs[nc0];
+			for (int nc1 = nc0 + 1; nc1 < (int)ras.size(); nc1++)
+			{
+				can2::RingAntenna* pa1 = ras[nc1];
+				std::map <can2::Gnss::Signal, can2::Point3d >& a1 = offs[nc1];
+
+				for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+				{
+					if (!useBands[nb])
+						continue;
+
+					can2::Rect2d& r = rects[nb];
+
+					for (int nf = can2::Gnss::G01; nf < can2::Gnss::esigInvalid; nf++)
+					{
+						can2::Gnss::Signal eft = (can2::Gnss::Signal)nf;
+
+						if (can2::Gnss::getBand(eft) != nb)
+							continue;
+
+						if (a0.find(eft) == a0.end() || a1.find(eft) == a1.end())
+							continue;
+
+						can2::Point3d off0 = a0[eft];
+						can2::Point3d off1 = a1[eft];
+						double val = 0;
+						if (nWhatToPlot == 1)
+							val = can2::Point3d(off0 - off1).rad();
+						else if (nWhatToPlot == 2)
+							val = fabs(off0.z - off1.z);
+						else if (nWhatToPlot == 3)
+							val = sqrt((off0.x - off1.x) * (off0.x - off1.x) + (off0.y - off1.y) * (off0.y - off1.y));
+						else if (nWhatToPlot == 4)
+							val = fabs(off0.x - off1.x);
+						else if (nWhatToPlot == 5)
+							val = fabs(off0.y - off1.y);
+						val *= 1000;
+						if (isnan(r.pt.y))
+							r.pt.y = val;
+						if (isnan(r.s.cy))
+							r.s.cy = val - r.pt.y;
+						if (r.pt.y > val)
+							r.pt.y = val;
+						if (r.top() < val)
+							r.s.cy = val - r.pt.y;
+					}
+				}
+			}
+		}
+	}
+
+	int nBands = can2::Gnss::Band::ebMax;
+	for (int nb = 0; nb < nBands; nb++)
+	{
+		if (isnan(rects[nb].pt.y) || isnan(rects[nb].s.cy))
+		{
+			rects.erase(rects.begin() + nb);
+			nBands--;
+			nb--;
 		}
 	}
 }
@@ -696,7 +902,7 @@ void CRingDifView::updateSpreadCurves()
 	prn->m_metrics.em = em;
 
 	CCan2App* pApp = getCan2App();
-	int nWidth = 1; // (int)ceil(pApp->m_sp.pixInPoint * 3);
+
 
 	if (bHasCluster)
 	{
@@ -706,12 +912,68 @@ void CRingDifView::updateSpreadCurves()
 			if (c.ants.size() < 2)
 				continue;
 
-			std::map<double, can2::Point2d> mapSpread;
+			COLORREF clr = can2::Plot2d::getStdColor(nCurve); // clrs[nc % 9];
+			if (can2::gl_settings.plot2dColors.find(c.atm->getName()) != can2::gl_settings.plot2dColors.end())
+			{
+				clr = can2::gl_settings.plot2dColors[c.atm->getName()];
+			}
+
+			bool bSymVal = m_nWhatToPlot == 2 || m_nWhatToPlot == 4 || m_nWhatToPlot == 5;
+			int nWidth = c.ants.size() <=2 && !bSymVal ? (int)ceil(pApp->m_sp.pixInPoint * 3) : 1;
+
 			std::vector <can2::RingAntenna*> ras;
 			for (int i = 0; i < (int)c.ants.size(); i++)
 			{
 				ras.push_back(c.ants[i].get());
 			}
+
+			if (m_bClusterRects)
+			{
+				std::vector <can2::Rect2d> rects;
+				getClusterRects(ras, m_nWhatToPlot, prn->m_metrics, rects);
+				m_wndPlot.addRect(nCurve + 1, c.atm->getName().c_str(), rects, nWidth, clr);
+			}
+			else
+			{
+				std::map<double, can2::Point2d> mapSpread;
+				getClusterSpread(ras, m_nWhatToPlot, prn->m_metrics, mapSpread);
+
+				std::vector <can2::Point2d> pts;
+				std::vector <can2::Point2d> ptMinMax;
+
+				for (auto it = mapSpread.begin(); it != mapSpread.end(); it++)
+				{
+					double f = it->first;
+					can2::Point2d minMax = it->second;
+					pts.push_back(can2::Point2d(f, (minMax.x + minMax.y) / 2));
+					ptMinMax.push_back(minMax);
+				}
+
+				m_wndPlot.addBand(nCurve + 1, c.atm->getName().c_str(), pts, ptMinMax, nWidth, clr);
+			}
+			nCurve++;
+		}
+	}
+	else
+	{
+		std::map<double, can2::Point2d> mapSpread;
+		std::vector <can2::RingAntenna*> ras;
+		for (int i = 0; i < (int)prn->m_cls.size(); i++)
+		{
+			ras.push_back(prn->m_cls[i].atm.get());
+		}
+
+		bool bSymVal = m_nWhatToPlot == 2 || m_nWhatToPlot == 4 || m_nWhatToPlot == 5;
+		int nWidth = ras.size() <= 2 && !bSymVal ? (int)ceil(pApp->m_sp.pixInPoint * 3) : 1;
+
+		if (m_bClusterRects)
+		{
+			std::vector <can2::Rect2d> rects;
+			getClusterRects(ras, m_nWhatToPlot, prn->m_metrics, rects);
+			m_wndPlot.addRect(nCurve + 1, "", rects, nWidth, clrs[nCurve]);
+		}
+		else
+		{
 			getClusterSpread(ras, m_nWhatToPlot, prn->m_metrics, mapSpread);
 
 			std::vector <can2::Point2d> pts;
@@ -725,31 +987,8 @@ void CRingDifView::updateSpreadCurves()
 				ptMinMax.push_back(minMax);
 			}
 
-			m_wndPlot.addBand(nCurve + 1, c.atm->getName().c_str(), pts, ptMinMax, nWidth, clrs[nCurve]);
+			m_wndPlot.addBand(nCurve + 1, "", pts, ptMinMax, nWidth, clrs[nCurve]);
 		}
-	}
-	else
-	{
-		std::map<double, can2::Point2d> mapSpread;
-		std::vector <can2::RingAntenna*> ras;
-		for (int i = 0; i < (int)prn->m_cls.size(); i++)
-		{
-			ras.push_back(prn->m_cls[i].atm.get());
-		}
-		getClusterSpread(ras, m_nWhatToPlot, prn->m_metrics, mapSpread);
-
-		std::vector <can2::Point2d> pts;
-		std::vector <can2::Point2d> ptMinMax;
-
-		for (auto it = mapSpread.begin(); it != mapSpread.end(); it++)
-		{
-			double f = it->first;
-			can2::Point2d minMax = it->second;
-			pts.push_back(can2::Point2d(f, (minMax.x + minMax.y) / 2));
-			ptMinMax.push_back(minMax);
-		}
-
-		m_wndPlot.addBand(nCurve + 1, "", pts, ptMinMax, nWidth, clrs[nCurve]);
 	}
 
 	if (m_nWhatToPlot == 0)
@@ -918,3 +1157,27 @@ void CRingDifView::OnBnClickedButtonLoad()
 	*/
 }
 
+void CRingDifView::OnCurveFormat()
+{
+	//static COLORREF clrs[9] = { RGB(255, 0, 0), RGB(0, 200, 0), RGB(0, 0, 255),
+	//	RGB(200, 0, 200), RGB(125, 125, 0), RGB(0, 255, 255),
+	//	RGB(120, 0, 0), RGB(0, 120, 0), RGB(255, 128, 0) };
+
+	std::vector<COLORREF> colors;
+	for (int i = 0; i < can2::Plot2d::c_stdColorsNum; i++)
+		colors.push_back(can2::Plot2d::getStdColor(i));
+
+	CCurveFormatPg pgCurve;
+	pgCurve.m_pPlot = &m_wndPlot;
+	pgCurve.m_colors = colors;
+
+	CPropertySheet dlg("Plot properties");
+
+
+	dlg.AddPage(&pgCurve);
+
+	if (dlg.DoModal() != IDOK)
+		return;
+	m_wndPlot.Invalidate();
+	m_wndPlot.UpdateWindow();
+}

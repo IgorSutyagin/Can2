@@ -443,8 +443,8 @@ Point3d AntexAntenna::calcOffset(can2::Gnss::Signal es, double eleMask, OffsetMo
 
 	Matrix a(4, 4);
 
-	double cm = 1.0; // cos(eleMask*PI / 180);
-	double sm = 0.0; // sin(eleMask*PI / 180);
+	double cm = cos(eleMask*PI / 180); // 1.0; // 
+	double sm = sin(eleMask*PI / 180); // 0.0; // 
 	if (em == eSinAndCos)
 	{
 		a(0, 0) = PI * cm * cm * cm * cm / 4;
@@ -465,7 +465,7 @@ Point3d AntexAntenna::calcOffset(can2::Gnss::Signal es, double eleMask, OffsetMo
 	}
 	else if (em == eNoWeight) // bNoWeight = true
 	{
-		double eleMask = 0;
+		//double eleMask = 0;
 		a(0, 0) = -(PI * (2 * eleMask * PI / 180 - PI + sin(2 * eleMask * PI / 180))) / 4;
 		a(1, 1) = -(PI * (2 * eleMask * PI / 180 - PI + sin(2 * eleMask * PI / 180))) / 4;
 		a(2, 2) = (PI * (PI - 2 * eleMask * PI / 180 + sin(2 * eleMask * PI / 180))) / 2;
@@ -512,6 +512,20 @@ Point3d AntexAntenna::calcOffset(can2::Gnss::Signal es, double eleMask, OffsetMo
 	if (pro != nullptr)
 		*pro = r;
 	return Point3d(x(0) * wl, x(1) * wl, x(2) * wl);
+}
+
+Point3d AntexAntenna::getOffset(Gnss::Signal es, double* pro) const
+{
+	if (!hasPcc(es))
+		return Point3d(NAN, NAN, NAN);
+
+	if (pro == nullptr)
+		return m_sigs.at(es).pco;
+
+	Point3d pco = m_sigs.at(es).pco;
+
+	*pro = 0;
+	return pco;
 }
 
 double AntexAntenna::calcNorm(Gnss::Signal es, OffsetMode em, bool bSimple, int root) const

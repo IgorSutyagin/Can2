@@ -195,6 +195,7 @@
     <ClInclude Include="AntexPcvView.h" />
     <ClInclude Include="AntexSourceView.h" />
     <ClInclude Include="Archive.h" />
+    <ClInclude Include="AutoClustDlg.h" />
     <ClInclude Include="Can2.h" />
     <ClInclude Include="Can2Doc.h" />
     <ClInclude Include="Can2Exception.h" />
@@ -202,6 +203,8 @@
     <ClInclude Include="ChildFrm.h" />
     <ClInclude Include="ClassView.h" />
     <ClInclude Include="Colors.h" />
+    <ClInclude Include="ComboListCtrl.h" />
+    <ClInclude Include="CurveFormatPg.h" />
     <ClInclude Include="ListCtrlEx.h" />
     <ClInclude Include="FileView.h" />
     <ClInclude Include="framework.h" />
@@ -211,6 +214,7 @@
     <ClInclude Include="Node.h" />
     <ClInclude Include="OglEntity.h" />
     <ClInclude Include="PcoTableView.h" />
+    <ClInclude Include="PromptNameDlg.h" />
     <ClInclude Include="PromptTitleDlg.h" />
     <ClInclude Include="Settings.h" />
     <ClInclude Include="OutputWnd.h" />
@@ -246,6 +250,7 @@
     <ClCompile Include="AntexPcvView.cpp" />
     <ClCompile Include="AntexSourceView.cpp" />
     <ClCompile Include="Archive.cpp" />
+    <ClCompile Include="AutoClustDlg.cpp" />
     <ClCompile Include="Can2.cpp" />
     <ClCompile Include="Can2Doc.cpp" />
     <ClCompile Include="Can2Exception.cpp" />
@@ -253,6 +258,8 @@
     <ClCompile Include="ChildFrm.cpp" />
     <ClCompile Include="ClassView.cpp" />
     <ClCompile Include="Colors.cpp" />
+    <ClCompile Include="ComboListCtrl.cpp" />
+    <ClCompile Include="CurveFormatPg.cpp" />
     <ClCompile Include="ListCtrlEx.cpp" />
     <ClCompile Include="FileView.cpp" />
     <ClCompile Include="Gnss.cpp" />
@@ -269,6 +276,7 @@
     <ClCompile Include="PcoTableView.cpp" />
     <ClCompile Include="Plot2d.cpp" />
     <ClCompile Include="Plot3d.cpp" />
+    <ClCompile Include="PromptNameDlg.cpp" />
     <ClCompile Include="PromptTitleDlg.cpp" />
     <ClCompile Include="PropertiesWnd.cpp" />
     <ClCompile Include="RingBar.cpp" />

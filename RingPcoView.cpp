@@ -40,6 +40,7 @@
 #include "RingPcoView.h"
 #include "PromptTitleDlg.h"
 #include "Settings.h"
+#include "CurveFormatPg.h"
 
 // CRingPcoView
 CRingDoc* CRingPcoView::GetDocument() const
@@ -62,6 +63,8 @@ CRingPcoView::CRingPcoView()
 	, m_bxAuto(TRUE)
 	, m_yDivs(10)
 	, m_xDivs(10)
+	, m_bOffsetFromAntex(FALSE)
+	, m_bMarker(FALSE)
 {
 	m_bNeedInit = true;
 	m_eleMask = 0.0;
@@ -78,6 +81,8 @@ void CRingPcoView::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_CUSTOM_PLOT, m_wndPlot);
 	DDX_Radio(pDX, IDC_RADIO_EAST, m_nCoord);
 	DDX_Text(pDX, IDC_EDIT_ELE_MASK, m_eleMask);
+	DDX_Check(pDX, IDC_CHECK_OFFSET_FROM_ANTEX, m_bOffsetFromAntex);
+	DDX_Check(pDX, IDC_CHECK_MARKER, m_bMarker);
 
 	DDX_Text(pDX, IDC_EDIT_Y_MAX, m_yMax);
 	DDX_Text(pDX, IDC_EDIT_Y_MIN, m_yMin);
@@ -95,6 +100,7 @@ BEGIN_MESSAGE_MAP(CRingPcoView, CFormView)
 	ON_COMMAND(IDC_RADIO_NORTH, &CRingPcoView::OnRadioNorth)
 	ON_COMMAND(IDC_RADIO_UP, &CRingPcoView::OnRadioUp)
 	ON_BN_CLICKED(IDC_RADIO_HPCO, &CRingPcoView::OnClickedRadioEast)
+	ON_BN_CLICKED(IDC_RADIO_R, &CRingPcoView::OnRadioUp)
 	ON_EN_CHANGE(IDC_EDIT_ELE_MASK, &CRingPcoView::OnChangeEditEleMask)
 	ON_WM_TIMER()
 
@@ -112,6 +118,10 @@ BEGIN_MESSAGE_MAP(CRingPcoView, CFormView)
 	ON_BN_CLICKED(IDC_BUTTON_LOAD, &CRingPcoView::OnBnClickedButtonLoad)
 
 	ON_BN_CLICKED(IDC_BUTTON_SET_PLOT_TITLE, &CRingPcoView::OnBnClickedButtonSetPlotTitle)
+	ON_BN_CLICKED(IDC_CHECK_OFFSET_FROM_ANTEX, &CRingPcoView::OnBnClickedOffsetFromAntex)
+	ON_BN_CLICKED(IDC_CHECK_MARKER, &CRingPcoView::OnBnClickedOffsetFromAntex)
+
+	ON_COMMAND (ID_PLOT2D_CURVEFORMAT, &OnCurveFormat)
 END_MESSAGE_MAP()
 
 
@@ -390,9 +400,9 @@ void CRingPcoView::updateCurves()
 	can2::RingNode* prn = pDoc->m_rn;
 	can2::Gnss::Signal sigSel = pDoc->m_signal;
 
-	COLORREF clrs[9] = { RGB(255, 0, 0), RGB(0, 200, 0), RGB(0, 0, 255),
-		RGB(200, 0, 200), RGB(125, 125, 0), RGB(0, 200, 200),
-		RGB(120, 0, 0), RGB(0, 120, 0), RGB(0, 0, 120) };
+	//COLORREF clrs[9] = { RGB(255, 0, 0), RGB(0, 200, 0), RGB(0, 0, 255),
+	//	RGB(200, 0, 200), RGB(125, 125, 0), RGB(0, 255, 255),
+	//	RGB(120, 0, 0), RGB(0, 120, 0), RGB(255, 128, 120) };
 
 	m_wndPlot.removeAllCurves();
 	m_wndPlot.removeAllCircles();
@@ -400,17 +410,25 @@ void CRingPcoView::updateCurves()
 
 	m_wndPlot.setAxisTitle(TRUE, m_nCoord <= 2 ? "Frequency (MHz)" : "East (mm)", FALSE);
 	CString str;
-	str.Format("%s (mm)", m_nCoord == 0 ? "East" : m_nCoord == 1 ? "North" : m_nCoord == 2 ? "VPCO" : "North");
+	str.Format("%s (mm)", m_nCoord == 0 ? "East" : m_nCoord == 1 ? "North" : m_nCoord == 2 ? "VPCO" : m_nCoord == 3 ? "North" : "R");
 	m_wndPlot.setAxisTitle(FALSE, str, FALSE);
 	m_wndPlot.resetInitArea();
 
 	can2::Point3d ptMax(-DBL_MAX, -DBL_MAX, -DBL_MAX);
 	can2::Point3d ptMin(DBL_MAX, DBL_MAX, DBL_MAX);
+	double roMin = DBL_MAX;
+	double roMax = -DBL_MAX;
 	for (int nc = 0; nc < (int)prn->m_cls.size(); nc++)
 	{
 		const can2::RingNode::Cluster& cls = prn->m_cls[nc];
-		can2::AntexAntenna* pa = cls.atm.get();
+		can2::RingAntenna* pa = cls.atm.get();
 		bool bCluster = cls.ants.size() > 1;
+
+		COLORREF clr = can2::Plot2d::getStdColor(nc); // clrs[nc % 9];
+		if (can2::gl_settings.plot2dColors.find(pa->getName()) != can2::gl_settings.plot2dColors.end())
+		{
+			clr = can2::gl_settings.plot2dColors[pa->getName()];
+		}
 
 		std::vector<can2::Point2d> pts;
 		std::vector<can2::Point3d> ptMinMax;
@@ -424,12 +442,15 @@ void CRingPcoView::updateCurves()
 				continue;
 
 			//CF3DPoint off = pa->calcOffset(sys, slot, m_eleMask);
-			can2::Point3d off = pa->calcOffset(eft, m_eleMask, prn->m_metrics.em);
+			double ro = 0;
+			can2::Point3d off = m_bOffsetFromAntex ? pa->getOffset(eft, &ro) : pa->calcOffset(eft, m_eleMask, prn->m_metrics.em, &ro);
 			can2::Point3d ptMinC;
 			can2::Point3d ptMaxC;
+			double roMinC = 0;
+			double roMaxC = 0;
 			if (bCluster)
 			{
-				cls.getMinMaxOff(ptMinC, ptMaxC, eft, m_eleMask, prn->m_metrics.em);
+				cls.getMinMaxOff(ptMinC, ptMaxC, roMinC, roMaxC, eft, m_eleMask, prn->m_metrics.em);
 				if (off.x < ptMinC.x)
 					ptMinC.x = off.x;
 				if (off.y < ptMinC.y)
@@ -444,19 +465,31 @@ void CRingPcoView::updateCurves()
 					ptMaxC.z = off.z;
 				ptMinC *= 1000;
 				ptMaxC *= 1000;
+				if (ro < roMinC)
+					roMinC = ro;
+				if (ro > roMaxC)
+					roMaxC = ro;
+				roMinC *= 1000;
+				roMaxC *= 1000;
 			}
 
 			if (!off.isValid())
 				continue;
 			off *= 1000;
+			ro *= 1000;
 			if (m_nCoord <= 2)
 			{
 				pts.push_back(can2::Point2d(can2::Gnss::getSysFreq(eft) / 1000000.0, off[m_nCoord]));
 				ptMinMax.push_back(can2::Point3d(can2::Gnss::getSysFreq(eft) / 1000000.0, ptMinC[m_nCoord], ptMaxC[m_nCoord]));
 			}
-			else
+			else if (m_nCoord == 3)
 			{
 				ptHs.push_back(can2::Point3d(can2::Gnss::getSysFreq(eft) / 1000000.0, off.e, off.n));
+			}
+			else // if (m_nCoord == 4)
+			{
+				pts.push_back(can2::Point2d(can2::Gnss::getSysFreq(eft) / 1000000.0, ro));
+				ptMinMax.push_back(can2::Point3d(can2::Gnss::getSysFreq(eft) / 1000000.0, roMinC, roMaxC));
 			}
 
 
@@ -467,9 +500,13 @@ void CRingPcoView::updateCurves()
 				if (off[i] > ptMax[i])
 					ptMax[i] = off[i];
 			}
+			if (ro < roMin)
+				roMin = ro;
+			if (ro > roMax)
+				roMax = ro;
 		}
 
-		if (m_nCoord <= 2)
+		if (m_nCoord <= 2 || m_nCoord == 4)
 		{
 			std::sort(pts.begin(), pts.end(), [](const can2::Point2d& a, const can2::Point2d& b) {
 				return a.x < b.x;
@@ -478,7 +515,7 @@ void CRingPcoView::updateCurves()
 				return a.x < b.x;
 			});
 		}
-		else
+		else if (m_nCoord == 3)
 		{
 			if (sigSel != can2::Gnss::esigInvalid)
 			{
@@ -488,7 +525,7 @@ void CRingPcoView::updateCurves()
 				});
 				if (it != ptHs.end())
 				{
-					m_wndPlot.addCircle(nc+10, it->y, it->z, 0.1, clrs[nc % 9], 2);
+					m_wndPlot.addCircle(nc+10, it->y, it->z, 0.1, can2::Plot2d::getStdColor(nc), 2);
 				}
 			}
 
@@ -504,22 +541,22 @@ void CRingPcoView::updateCurves()
 		{
 			CCan2App* pApp = getCan2App();
 			int nWidth = (int)ceil(pApp->m_sp.pixInPoint * 3);
-			m_wndPlot.addCurve(nc + 1, pa->getName().c_str(), pts, nWidth, can2::Curve2d::eLineAndPoints, clrs[nc % 9]);
+			m_wndPlot.addCurve(nc + 1, pa->getName().c_str(), pts, nWidth, can2::Curve2d::eLineAndPoints, clr);
 		}
 		else
 		{
-			if (m_nCoord <= 2)
+			if (m_nCoord <= 2 || m_nCoord == 4)
 			{
 				std::vector<can2::Point2d> ptMinMax2d;
 				for (int i = 0; i < (int)ptMinMax.size(); i++)
 				{
 					ptMinMax2d.push_back(can2::Point2d(ptMinMax[i].y, ptMinMax[i].z));
 				}
-				m_wndPlot.addBand(nc + 1, pa->getName().c_str(), pts, ptMinMax2d, 1, clrs[nc % 9]);
+				m_wndPlot.addBand(nc + 1, pa->getName().c_str(), pts, ptMinMax2d, 1, clr); // clrs[nc % 9]);
 			}
 			else
 			{
-				m_wndPlot.addCurve(nc + 1, pa->getName().c_str(), pts, 2, can2::Curve2d::eLineAndPoints, clrs[nc % 9]);
+				m_wndPlot.addCurve(nc + 1, pa->getName().c_str(), pts, 2, can2::Curve2d::eLineAndPoints, clr);
 				
 			}
 		}
@@ -529,7 +566,7 @@ void CRingPcoView::updateCurves()
 			pCurve->m_bDirection = m_nCoord > 2;
 	}
 
-	if (m_nCoord <= 2)
+	if (m_nCoord <= 2 || m_nCoord == 4)
 	{
 		for (int nb = 0; nb < can2::Gnss::ebMax; nb++)
 		{
@@ -556,7 +593,7 @@ void CRingPcoView::updateCurves()
 			m_wndPlot.setAxis(FALSE, m_yMin, m_yMax, m_yDivs);
 		}
 
-		if (sigSel != can2::Gnss::esigInvalid)
+		if (m_bMarker && sigSel != can2::Gnss::esigInvalid)
 		{
 			double fsel = can2::Gnss::getSysFreq(sigSel) / 1000000.0;
 			m_wndPlot.setMarker(1, fsel);
@@ -753,4 +790,37 @@ void CRingPcoView::OnBnClickedButtonSetPlotTitle()
 	can2::gl_settings.save();
 
 	m_wndPlot.addPlotTitle(dlg.m_strText);
+	m_wndPlot.Invalidate();
+	m_wndPlot.UpdateWindow();
+}
+
+
+void CRingPcoView::OnBnClickedOffsetFromAntex()
+{
+	SetTimer(100, 1, NULL);
+}
+
+void CRingPcoView::OnCurveFormat()
+{
+	//static COLORREF clrs[9] = { RGB(255, 0, 0), RGB(0, 200, 0), RGB(0, 0, 255),
+	//	RGB(200, 0, 200), RGB(125, 125, 0), RGB(0, 255, 255),
+	//	RGB(120, 0, 0), RGB(0, 120, 0), RGB(255, 128, 0) };
+
+	std::vector<COLORREF> colors;
+	for (int i = 0; i < can2::Plot2d::c_stdColorsNum; i++)
+		colors.push_back(can2::Plot2d::getStdColor(i));
+
+	CCurveFormatPg pgCurve;
+	pgCurve.m_pPlot = &m_wndPlot;
+	pgCurve.m_colors = colors;
+
+	CPropertySheet dlg("Plot properties");
+
+
+	dlg.AddPage(&pgCurve);
+
+	if (dlg.DoModal() != IDOK)
+		return;
+	m_wndPlot.Invalidate();
+	m_wndPlot.UpdateWindow();
 }

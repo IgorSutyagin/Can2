@@ -60,6 +60,10 @@ public:
 	can2::RingDistCtrl m_wndDists;
 	int m_nMeanType;
 	int m_nUseSignal;
+	int m_nMultisignalMode;
+	int m_nMetricsType;
+	int m_nWeight;
+	CComboBox m_cmbMaxClust;
 
 	static int c_nSigIDCs[can2::Gnss::esigInvalid];
 

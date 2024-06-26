@@ -67,6 +67,8 @@ BEGIN_MESSAGE_MAP(CRingSourcePg, CPropertyPage)
 	ON_NOTIFY(LVN_ENDLABELEDIT, IDC_LIST_SOURCE, &CRingSourcePg::OnLvnEndlabeleditListSource)
 	ON_BN_CLICKED(IDC_BUTTON_ADD, &CRingSourcePg::OnClickedButtonAdd)
 	ON_BN_CLICKED(IDC_BUTTON_REMOVE, &CRingSourcePg::OnClickedButtonRemove)
+	ON_BN_CLICKED(IDC_BUTTON_UP, &CRingSourcePg::OnBnClickedButtonUp)
+	ON_BN_CLICKED(IDC_BUTTON_DOWN, &CRingSourcePg::OnBnClickedButtonDown)
 END_MESSAGE_MAP()
 
 
@@ -251,6 +253,8 @@ void CRingSourcePg::OnClickedButtonAdd()
 		}
 	}
 	
+	CWaitCursor wc;
+
 	m_prn->addAntennas(ras);
 	CListCtrlEx& lst = (CListCtrlEx&)m_lstSource;
 	int item = lst.GetItemCount();
@@ -277,6 +281,8 @@ void CRingSourcePg::OnClickedButtonRemove()
 	if (sel < 0)
 		return;
 
+	CWaitCursor wc;
+
 	can2::RingAntenna* pra = (can2::RingAntenna*)lst.GetItemData(sel);
 	m_prn->removeAnt(pra);
 	lst.DeleteItem(sel);
@@ -301,4 +307,66 @@ BOOL CRingSourcePg::OnKillActive()
 	}
 
 	return CPropertyPage::OnKillActive();
+}
+
+
+void CRingSourcePg::OnBnClickedButtonUp()
+{
+	CListCtrlEx& lst = (CListCtrlEx&)m_lstSource;
+	int sel = lst.getSelIndex();
+	if (sel <= 0)
+		return;
+
+	CWaitCursor wc;
+
+	can2::RingAntenna* pa0 = (can2::RingAntenna*)lst.GetItemData(sel);
+	can2::RingAntenna* pa1 = (can2::RingAntenna*)lst.GetItemData(sel-1);
+
+	lst.SetItemText(sel, 0, pa1->m_alias.c_str());
+	lst.SetItemText(sel, 1, pa1->getFullName().c_str());
+	lst.SetItemText(sel, 2, can2::AntexFile::getShortPathName(pa1->m_sourceFile.c_str()).c_str());
+	lst.SetCheck(sel, TRUE);
+	lst.SetItemData(sel, (DWORD_PTR)pa1);
+
+	lst.SetItemText(sel-1, 0, pa0->m_alias.c_str());
+	lst.SetItemText(sel-1, 1, pa0->getFullName().c_str());
+	lst.SetItemText(sel-1, 2, can2::AntexFile::getShortPathName(pa0->m_sourceFile.c_str()).c_str());
+	lst.SetCheck(sel-1, TRUE);
+	lst.SetItemData(sel-1, (DWORD_PTR)pa0);
+
+	m_prn->swapAntennas(pa0, pa1);
+	lst.SetItemState(sel, 0, LVIS_SELECTED);
+	lst.SetItemState(sel-1, LVIS_SELECTED, LVIS_SELECTED);
+	//lst.Invalidate();
+	//lst.UpdateWindow();
+}
+
+
+void CRingSourcePg::OnBnClickedButtonDown()
+{
+	CListCtrlEx& lst = (CListCtrlEx&)m_lstSource;
+	int sel = lst.getSelIndex();
+	if (sel < 0 || sel>=lst.GetItemCount())
+		return;
+
+	CWaitCursor wc;
+
+	can2::RingAntenna* pa0 = (can2::RingAntenna*)lst.GetItemData(sel);
+	can2::RingAntenna* pa1 = (can2::RingAntenna*)lst.GetItemData(sel + 1);
+
+	lst.SetItemText(sel, 0, pa1->m_alias.c_str());
+	lst.SetItemText(sel, 1, pa1->getFullName().c_str());
+	lst.SetItemText(sel, 2, can2::AntexFile::getShortPathName(pa1->m_sourceFile.c_str()).c_str());
+	lst.SetCheck(sel, TRUE);
+	lst.SetItemData(sel, (DWORD_PTR)pa1);
+
+	lst.SetItemText(sel + 1, 0, pa0->m_alias.c_str());
+	lst.SetItemText(sel + 1, 1, pa0->getFullName().c_str());
+	lst.SetItemText(sel + 1, 2, can2::AntexFile::getShortPathName(pa0->m_sourceFile.c_str()).c_str());
+	lst.SetCheck(sel + 1, TRUE);
+	lst.SetItemData(sel + 1, (DWORD_PTR)pa0);
+
+	m_prn->swapAntennas(pa0, pa1);
+	lst.SetItemState(sel, 0, LVIS_SELECTED);
+	lst.SetItemState(sel + 1, LVIS_SELECTED, LVIS_SELECTED);
 }

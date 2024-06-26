@@ -63,40 +63,14 @@ void RingNode::reset()
 	m_ants.clear();
 }
 
-/*
-RingNode* RingNode::create(const std::map<std::string, RingAntenna*>& ants)
-{
-	RingNode* prn = new RingNode();
-	prn->m_metrics.use(Gnss::G01, true);
-	prn->m_metrics.use(Gnss::G02, true);
-	prn->m_metrics.use(Gnss::R01, true);
-	prn->m_metrics.use(Gnss::R02, true);
-
-	for (auto& p : ants)
-	{
-		RingAntenna* pa = new RingAntenna();
-		*pa = *p.second;
-		pa->m_parent = prn;
-		std::shared_ptr<RingAntenna> a(pa);
-		pa->m_alias = p.first;
-		prn->m_ants.push_back(a);
-
-		Cluster cl;
-		cl.ants.push_back(a);
-		cl.atm = a;
-		prn->m_cls.push_back(cl);
-	}
-
-	prn->compDists();
-
-	return prn;
-}
-*/
 
 //////////////////////////////
 // Operations:
 void RingNode::compDists()
 {
+	compDists2();
+	return;
+
 	m_dists.clear();
 	for (size_t i = 0; i < m_cls.size(); i++)
 	{
@@ -114,10 +88,62 @@ void RingNode::compDists()
 	}
 }
 
+void RingNode::compDists2()
+{
+	// Precompute distances between antennas from m_ants
+	std::map<std::pair<std::string, std::string>, double> antDists;
+	for (size_t i = 0; i < m_ants.size(); i++)
+	{
+		RingAntenna* pi = m_ants[i].get();
+		for (size_t j = i + 1; j < m_ants.size(); j++)
+		{
+			RingAntenna* pj = m_ants[j].get();
+			AntexAntenna* padif = (AntexAntenna*)pi->subtract(pj);
+			double d = norm(*padif, m_metrics);
+			std::pair<std::string, std::string> key(pi->getName(), pj->getName());
+			antDists[key] = d;
+			delete padif;
+		}
+	}
+
+	auto clustDist = [&](const Cluster& c1, const Cluster& c2) {
+		double dist = 0;
+		for (size_t i = 0; i < c1.ants.size(); i++)
+		{
+			RingAntenna* pi = c1.ants[i].get();
+			for (size_t j = 0; j < c2.ants.size(); j++)
+			{
+				RingAntenna* pj = c2.ants[j].get();
+				std::pair<std::string, std::string> key1(pi->getName(), pj->getName());
+				std::pair<std::string, std::string> key2(pj->getName(), pi->getName());
+				double d = antDists.find(key1) != antDists.end() ? antDists[key1] : 
+					antDists.find(key2) != antDists.end() ? antDists[key2] : NAN;
+				ASSERT(!isnan(d));
+				if (fabs(d) > dist)
+					dist = fabs(d);
+			}
+		}
+		return dist;
+	};
+	m_dists.clear();
+	for (size_t i = 0; i < m_cls.size(); i++)
+	{
+		Cluster& ci = m_cls[i];
+		for (size_t j = i + 1; j < m_cls.size(); j++)
+		{
+			Cluster& cj = m_cls[j];
+
+			double d = clustDist(ci, cj);
+			m_dists[std::pair<size_t, size_t>(i, j)] = d;
+		}
+	}
+}
+
 double RingNode::norm(const AntexAntenna& a, Metrics& metrics)
 {
 	double sumSigma = 0;
 	int countSigma = 0;
+	double maxDist = 0;
 	for (int ns = Gnss::G01; ns < Gnss::esigInvalid; ns++)
 	{
 		Gnss::Signal es = (Gnss::Signal)ns;
@@ -129,18 +155,58 @@ double RingNode::norm(const AntexAntenna& a, Metrics& metrics)
 			continue;
 		}
 
-		double sigma = a.calcNorm(es, metrics.em, metrics.bSimpleMode);
+		double sigma = NAN;
+		if (metrics.et == Metrics::etPcoPcv)
+		{
+			sigma = a.calcNorm(es, metrics.em, metrics.bSimpleMode);
+		}
+		else if (metrics.et == Metrics::etPco)
+		{
+			Point3d pco = a.calcOffset(es, metrics.eleMask, metrics.em);
+			sigma = pco.rad();
+		}
+		else if (metrics.et == Metrics::etVPco)
+		{
+			Point3d pco = a.calcOffset(es, metrics.eleMask, metrics.em);
+			sigma = fabs(pco.u);
+		}
+		else if (metrics.et == Metrics::etHPco)
+		{
+			Point3d pco = a.calcOffset(es, metrics.eleMask, metrics.em);
+			sigma = sqrt(pco.x * pco.x + pco.y * pco.y);
+		}
+		else if (metrics.et == Metrics::etE)
+		{
+			Point3d pco = a.calcOffset(es, metrics.eleMask, metrics.em);
+			sigma = fabs(pco.x);
+		}
+		else if (metrics.et == Metrics::etN)
+		{
+			Point3d pco = a.calcOffset(es, metrics.eleMask, metrics.em);
+			sigma = fabs(pco.y);
+		}
 		sigma *= 1000;
+		if (fabs(sigma) > maxDist)
+			maxDist = fabs(sigma);
+
 		double sigma2 = sigma * sigma;
 
 		sumSigma += sigma2;
 		countSigma++;
 	}
 
-	return sqrt(sumSigma / countSigma);
+	if (metrics.esp == Metrics::espRms)
+		return sqrt(sumSigma / countSigma);
+	else if (metrics.esp == Metrics::espMax)
+		return maxDist;
+	else
+	{
+		ASSERT(FALSE);
+		return NAN;
+	}
 }
 
-void RingNode::clusterize(int level, ClusterMode cm)
+void RingNode::clusterize(int level, ClusterMode cm, std::map<std::string, bool> * useAnts, int maxClust)
 {
 	// Set 0 clustering level
 	m_cls.clear();
@@ -154,29 +220,128 @@ void RingNode::clusterize(int level, ClusterMode cm)
 
 	compDists();
 
-	for (int lev = 0; lev < level; lev++)
+	if (false)
 	{
-		std::map<std::pair<size_t, size_t>, double>::iterator it = std::min_element(m_dists.begin(), m_dists.end(), [](const std::pair<std::pair<int, int>, double>& l, const std::pair<std::pair<int, int>, double>& r) {
-			return l.second < r.second;
+		for (int lev = 0; lev < level; lev++)
+		{
+			std::map<std::pair<size_t, size_t>, double>::iterator it = std::min_element(m_dists.begin(), m_dists.end(), [](const std::pair<std::pair<int, int>, double>& l, const std::pair<std::pair<int, int>, double>& r) {
+				return l.second < r.second;
+			});
+			if (it == m_dists.end())
+				return;
+
+			int m = it->first.first;
+			int n = it->first.second;
+
+			Cluster& c1 = m_cls[m];
+			Cluster& c2 = m_cls[n];
+			//Cluster c = unite(c1, c2);
+			Cluster c = (cm.meanType == ClusterMode::Arithmetic) ? unite(cm, c1, &c2) : uniteSh(cm, c1, &c2);
+
+			m_cls[m] = c;
+			m_cls.erase(m_cls.begin() + n);
+			compDists();
+		}
+	}
+	else
+	{
+		for (int lev = 0; lev < level; lev++)
+		{
+			std::map<std::pair<size_t, size_t>, double>::iterator itMin = m_dists.end();
+			if (useAnts == nullptr) // Use all antennas
+			{
+				itMin = std::min_element(m_dists.begin(), m_dists.end(), [&](const std::pair<std::pair<int, int>, double>& l, const std::pair<std::pair<int, int>, double>& r) {
+					return l.second < r.second;
+				});
+				if (itMin == m_dists.end())
+					return;
+			}
+			else
+			{
+				int nClustNum = 0;
+				for (size_t nc = 0; nc < m_cls.size(); nc++)
+				{
+					if (m_cls[nc].ants.size() > 1)
+						nClustNum++;
+				}
+				
+				double minVal = DBL_MAX;
+				for (std::map<std::pair<size_t, size_t>, double>::iterator it = m_dists.begin(); it != m_dists.end(); it++)
+				{
+					Cluster& c1 = m_cls[it->first.first];
+					Cluster& c2 = m_cls[it->first.second];
+					if (maxClust > 0 && nClustNum >= maxClust) // No more clusters, so do not create a new one
+					{
+						if (c1.ants.size() <= 1 && c2.ants.size() <= 1)
+							continue;
+					}
+
+					bool bUse = true;
+					std::for_each(c1.ants.begin(), c1.ants.end(), [&](const std::shared_ptr<RingAntenna>& a) {
+						if (!(*useAnts)[a->getName()])
+							bUse = false;
+					});
+					if (!bUse)
+						continue;
+					std::for_each(c2.ants.begin(), c2.ants.end(), [&](const std::shared_ptr<RingAntenna>& a) {
+						if (!(*useAnts)[a->getName()])
+							bUse = false;
+					});
+					if (!bUse)
+						continue;
+					if (it->second < minVal)
+					{
+						itMin = it;
+						minVal = it->second;
+					}
+				}
+			}
+
+			if (itMin == m_dists.end())
+				return;
+
+			int m = itMin->first.first;
+			int n = itMin->first.second;
+
+			Cluster c;
+			Cluster& c1 = m_cls[m];
+			Cluster& c2 = m_cls[n];
+			for (size_t i = 0; i < c1.ants.size(); i++)
+			{
+				c.ants.push_back(c1.ants[i]);
+			}
+			for (size_t i = 0; i < c2.ants.size(); i++)
+			{
+				c.ants.push_back(c2.ants[i]);
+			}
+
+			//Cluster c = unite(c1, c2);
+			//Cluster c = (cm.meanType == ClusterMode::Arithmetic) ? unite(cm, c1, &c2) : uniteSh(cm, c1, &c2);
+
+			m_cls[m] = c;
+			m_cls.erase(m_cls.begin() + n);
+			compDists();
+		}
+
+		for (size_t nc = 0; nc < m_cls.size(); nc++)
+		{
+			Cluster& c = m_cls[nc];
+			if (c.ants.size() <= 1)
+				continue;
+
+			Cluster cNew = (cm.meanType == ClusterMode::Arithmetic) ? unite(cm, c) : uniteSh(cm, c);
+			m_cls[nc] = cNew;
+		}
+
+		std::sort(m_cls.begin(), m_cls.end(), [&](const Cluster& c1, const Cluster& c2) {
+			return c1.ants.size() < c2.ants.size();
 		});
-		if (it == m_dists.end())
-			return;
 
-		int m = it->first.first;
-		int n = it->first.second;
-
-		Cluster& c1 = m_cls[m];
-		Cluster& c2 = m_cls[n];
-		//Cluster c = unite(c1, c2);
-		Cluster c = (cm.meanType == ClusterMode::Arithmetic) ? unite(cm, c1, &c2) : uniteSh(cm, c1, &c2);
-
-		m_cls[m] = c;
-		m_cls.erase(m_cls.begin() + n);
 		compDists();
 	}
 }
 
-void RingNode::clusterizeManual(std::vector<std::vector<RingAntenna*>>& cls, ClusterMode cm)
+void RingNode::clusterizeManual(std::vector<std::vector<RingAntenna*>>& cls, std::vector<std::string>& names, ClusterMode cm)
 {
 	m_cls.clear();
 	m_dists.clear();
@@ -216,9 +381,19 @@ void RingNode::clusterizeManual(std::vector<std::vector<RingAntenna*>>& cls, Clu
 			}
 
 			if (cm.meanType == ClusterMode::Arithmetic)
-				m_cls.push_back(unite(cm, c));
+			{
+				Cluster cNew = unite(cm, c);
+				if (!names[nc].empty())
+					cNew.atm->m_alias = names[nc];
+				m_cls.push_back(cNew);
+			}
 			else
-				m_cls.push_back(uniteSh(cm, c));
+			{
+				Cluster cNew = uniteSh(cm, c);
+				if (!names[nc].empty())
+					cNew.atm->m_alias = names[nc];
+				m_cls.push_back(cNew);
+			}
 		}
 	}
 	compDists();
@@ -685,6 +860,31 @@ void RingNode::removeAnt(RingAntenna* pa)
 	clusterize(0, ClusterMode());
 }
 
+void RingNode::swapAntennas(RingAntenna* pa0, RingAntenna* pa1)
+{
+	int index0 = -1;
+	int index1 = -1;
+	for (int i = 0; i < (int)m_ants.size(); i++)
+	{
+		if (m_ants[i].get() == pa0)
+		{
+			index0 = i;
+		}
+		if (m_ants[i].get() == pa1)
+		{
+			index1 = i;
+		}
+	}
+
+	if (index0 < 0 || index1 < 0)
+		return;
+
+	std::shared_ptr<RingAntenna> a0 = m_ants[index0];
+	m_ants[index0] = m_ants[index1];
+	m_ants[index1] = a0;
+	clusterize(0, ClusterMode());
+}
+
 ///////////////////////////
 // Overrides
 
@@ -701,7 +901,7 @@ std::string RingNode::getShortName() const
 // Serialization
 void RingNode::Metrics::serialize(Archive& ar)
 {
-	DWORD dwVer = 2;
+	DWORD dwVer = 5;
 	if (ar.isStoring())
 	{
 		ar << dwVer;
@@ -718,6 +918,9 @@ void RingNode::Metrics::serialize(Archive& ar)
 
 		ar << (short)em;
 		ar << bSimpleMode;
+		ar << (short)esp;
+		ar << (short)et;
+		ar << maxClust;
 	}
 	else
 	{
@@ -741,6 +944,25 @@ void RingNode::Metrics::serialize(Archive& ar)
 			ar >> n;
 			em = (AntexAntenna::OffsetMode)n;
 			ar >> bSimpleMode;
+		}
+
+		if (dwVer >= 3)
+		{
+			short n = 0;
+			ar >> n;
+			esp = (SigProc)n;
+		}
+
+		if (dwVer >= 4)
+		{
+			short n = 0;
+			ar >> n;
+			et = (Type)n;
+		}
+
+		if (dwVer >= 5)
+		{
+			ar >> maxClust;
 		}
 	}
 }

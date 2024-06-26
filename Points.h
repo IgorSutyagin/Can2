@@ -196,6 +196,13 @@ namespace can2
 		double top() const { return pt.y + s.cy; }
 		double bottom() const {	return pt.y; }
 		Point2d topRight() const {	return pt + s;	}
+		Point2d corner(int i) const {
+			return i == 0 ? Point2d(left(), bottom()) :
+				i == 1 ? Point2d(left(), top()) :
+				i == 2 ? Point2d(right(), top()) :
+				i == 3 ? Point2d(right(), bottom()) :
+				Point2d(NAN, NAN);
+		}
 
 		// Data members:
 	public:

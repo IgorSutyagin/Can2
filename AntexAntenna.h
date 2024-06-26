@@ -214,11 +214,7 @@ namespace can2
 		virtual Point3d calcOffset(can2::Gnss::Signal es, double eleMask, OffsetMode em, double * pro=nullptr) const;
 
 		// Returns offset loaded from the ANTEX file
-		virtual Point3d getOffset(can2::Gnss::Signal es) const { 
-			if (!hasPcc(es))
-				return Point3d(NAN, NAN, NAN);
-			return m_sigs.at(es).pco;
-		}
+		virtual Point3d getOffset(can2::Gnss::Signal es, double* pro = nullptr) const;
 
 		double calcNorm(Gnss::Signal es, OffsetMode em, bool bSimple = false, int root = -1) const;
 		double calcNormSimple(Gnss::Signal es, OffsetMode em) const;
