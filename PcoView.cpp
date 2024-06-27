@@ -262,7 +262,9 @@ void CPcoView::updateCurves()
 	for (int i = 0; i < 2; i++)
 	{
 		std::string str = i == 0 ? "Computed" : "From ANTEX file";
-		m_wndPlot.addCurve(i+1, str.c_str(), pts[i], 2, can2::Curve2d::eLineAndPoints, clrs[i]);
+		CCan2App* pApp = getCan2App();
+		int nWidth = (int)ceil(pApp->m_sp.pixInPoint * 3);
+		m_wndPlot.addCurve(i+1, str.c_str(), pts[i], nWidth, can2::Curve2d::eLineAndPoints, clrs[i]);
 
 		can2::Curve2d* pCurve = m_wndPlot.getCurve(i+1);
 		if (pCurve != nullptr)

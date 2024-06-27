@@ -96,6 +96,18 @@ namespace can2
 		bool bRainbow;
 		Labels eLabels;
 
+		bool isValid() const {
+			if (zStep <= 1e-3)
+				return false;
+			if (isoStep <= 1e-3)
+				return false;
+			if (colorStep <= 1e-3)
+				return false;
+			if (zMin >= zMax)
+				return false;
+			return true;
+		}
+
 		void serialize(Archive& ar);
 	};
 	// End of 3D plot parameters

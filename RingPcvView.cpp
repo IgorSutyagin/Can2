@@ -394,36 +394,51 @@ void CRingPcvView::OnTimer(UINT_PTR nIDEvent)
 		UpdateData(TRUE);
 		if (m_viewParams.isoStep <= 0)
 			m_viewParams.isoStep = 0.1;
-		m_wndPlot.setViewParams(m_viewParams);
-		m_wndPlot.updateData();
+		if (m_viewParams.isValid())
+		{
+			m_wndPlot.setViewParams(m_viewParams);
+			m_wndPlot.updateData();
+		}
 	}
 	else if (nIDEvent == 3) // Z min-max-step
 	{
 		KillTimer(nIDEvent);
 		UpdateData(TRUE);
-		m_wndPlot.setViewParams(m_viewParams);
-		m_wndPlot.updateData();
+		if (m_viewParams.isValid())
+		{
+			m_wndPlot.setViewParams(m_viewParams);
+			m_wndPlot.updateData();
+		}
 	}
 	else if (nIDEvent == 4) // View
 	{
 		KillTimer(nIDEvent);
 		UpdateData(TRUE);
-		m_wndPlot.setViewParams(m_viewParams);
-		m_wndPlot.updateData();
+		if (m_viewParams.isValid())
+		{
+			m_wndPlot.setViewParams(m_viewParams);
+			m_wndPlot.updateData();
+		}
 	}
 	else if (nIDEvent == 5) // Polar - Decart
 	{
 		KillTimer(nIDEvent);
 		UpdateData(TRUE);
-		m_wndPlot.setViewParams(m_viewParams);
-		m_wndPlot.updateData();
+		if (m_viewParams.isValid())
+		{
+			m_wndPlot.setViewParams(m_viewParams);
+			m_wndPlot.updateData();
+		}
 	}
 	else if (nIDEvent == 6) // Grid0, Rainbow
 	{
 		KillTimer(nIDEvent);
 		UpdateData(TRUE);
-		m_wndPlot.setViewParams(m_viewParams);
-		m_wndPlot.Invalidate();
+		if (m_viewParams.isValid())
+		{
+			m_wndPlot.setViewParams(m_viewParams);
+			m_wndPlot.Invalidate();
+		}
 	}
 
 	CFormView::OnTimer(nIDEvent);
@@ -441,12 +456,12 @@ void CRingPcvView::OnSelchangeComboViewAt()
 
 void CRingPcvView::OnEnChangeEditIso()
 {
-	SetTimer(2, 1, NULL);
+	SetTimer(2, 500, NULL);
 }
 
 void CRingPcvView::OnChangeEditZMinMax()
 {
-	SetTimer(3, 1, NULL);
+	SetTimer(3, 500, NULL);
 }
 
 void CRingPcvView::OnPolar()
