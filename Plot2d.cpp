@@ -1282,6 +1282,25 @@ void Curve2d::setMarks(std::vector<COLORREF>& clrs, std::vector<COLORREF>& clrs2
 	m_nMarkSize = nMarkSize;
 }
 
+bool Curve2d::isSuccessiveArguments() const
+{
+	for (int np = 1; np < (int)m_pts.size(); np++)
+	{
+		if (m_pts[np - 1].x >= m_pts[np].x)
+			return false;
+	}
+
+	return true;
+}
+
+double Curve2d::getY(double x) const
+{
+	auto it = std::find_if(m_pts.begin(), m_pts.end(), [&](const Point2d& a) { return a.x == x; });
+	if (it == m_pts.end())
+		return NAN;
+	return it->y;
+}
+
 // End of Curve2d implementation
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1898,6 +1917,208 @@ void PlotTable::draw(CDC* pDC, Plot2d* pPlot)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// HistGroup implementation
+
+HistGroup::HistGroup()
+{
+	colWidth = 0;
+	space = 4;
+	maxCols = 0;
+}
+
+HistGroup::~HistGroup()
+{
+}
+
+/////////////////////////////////
+// Operations:
+void HistGroup::getMinMax(double& vmin, double& vmax) const
+{
+	vmin = DBL_MAX;
+	vmax = -DBL_MAX;
+	for (int i = 0; i < (int)groups.size(); i++)
+	{
+		const Group& g = groups.at(i);
+		for (int j = 0; j < (int)g.vals.size(); j++)
+		{
+			if (g.vals[j].second > vmax)
+				vmax = g.vals[j].second;
+			if (g.vals[j].second < vmin)
+				vmin = g.vals[j].second;
+		}
+	}
+}
+
+void HistGroup::addGroup(const char* name, const double* pv, const char** valNames, const COLORREF* pclrs, int valCount)
+{
+	Group g;
+	g.name = name;
+	for (int i = 0; i < valCount; i++)
+	{
+		int valKey = -1;
+		int maxKey = 0;
+		std::for_each(types.begin(), types.end(), [&](const std::pair<int, Type>& a) {
+			if (a.second.name == valNames[i])
+				valKey = a.first;
+			if (a.first > maxKey)
+				maxKey = a.first;
+		});
+
+		if (valKey < 0)
+		{
+			valKey = maxKey + 1;
+			Type t(valKey, valNames[i], pclrs[i]);
+			types[valKey] = t;
+		}
+
+		g.vals.push_back(std::pair<int, double>(valKey, pv[i]));
+	}
+
+	groups.push_back(g);
+}
+
+void HistGroup::addGroup(const char* name, const std::vector<double>& vs, const std::vector<const char *>& valNames, const std::vector<COLORREF>& clrs)
+{
+	ASSERT(vs.size() == valNames.size() && vs.size() == clrs.size());
+	Group g;
+	g.name = name;
+	int valCount = vs.size();
+	for (int i = 0; i < valCount; i++)
+	{
+		int valKey = -1;
+		int maxKey = 0;
+		std::for_each(types.begin(), types.end(), [&](const std::pair<int, Type>& a) {
+			if (a.second.name == valNames[i])
+				valKey = a.first;
+			if (a.first > maxKey)
+				maxKey = a.first;
+		});
+
+		if (valKey < 0)
+		{
+			valKey = maxKey + 1;
+			Type t(valKey, valNames[i], clrs[i]);
+			types[valKey] = t;
+		}
+
+		g.vals.push_back(std::pair<int, double>(valKey, vs[i]));
+	}
+
+	groups.push_back(g);
+}
+
+
+void HistGroup::layout(CDC* pDC, CRect rectClient, Plot2d* pPlot)
+{
+	if (groups.size() == 0)
+		return;
+	int cx = rectClient.Width() / groups.size();
+	maxCols = 0;
+	for (int i = 0; i < (int)groups.size(); i++)
+	{
+		groups[i].rect = CRect(cx * i, rectClient.top, cx * (i + 1), rectClient.bottom);
+		if (groups[i].vals.size() > (size_t)maxCols)
+			maxCols = groups[i].vals.size();
+	}
+
+	colWidth = (cx - (maxCols + 1) * space) / maxCols;
+}
+
+void HistGroup::draw(CDC* pDC, Plot2d* pPlot, std::vector<HistGroup>& hgs, int nPass)
+{
+	CPoint pt0 = pPlot->scale(0, 0, false);
+	//CPoint pt1 = pPlot->scale(1, 0, false);
+	CRect rectPlot;
+	rectPlot.TopLeft() = pPlot->scale(pPlot->m_frectPlotArea.pt.x, pPlot->m_frectPlotArea.top(), false);
+	rectPlot.BottomRight() = pPlot->scale(pPlot->m_frectPlotArea.right(), pPlot->m_frectPlotArea.pt.y, false);
+	int cx = rectPlot.Width() / groups.size();
+	colWidth = (cx - (maxCols - 1) * space - 4 * space) / maxCols;
+
+	CPen * pOldPen = (CPen *)pDC->SelectObject(&pPlot->m_penAxis);
+	CFont* pOldFont = (CFont*)pDC->SelectObject(pPlot->m_pLegendFont);
+
+	auto getVal = [](int ng, int nv, std::vector<HistGroup>& hgs, int nPass) {
+		std::vector<std::pair<int, std::pair<int, double>>> vals;
+		for (int i = 0; i < (int)hgs.size(); i++)
+			vals.push_back(std::pair<int, std::pair<int, double>>{ i, hgs[i].groups[ng].vals[nv] });
+
+		std::sort(vals.begin(), vals.end(), [](const std::pair<int, std::pair<int, double>>& a, const std::pair<int, std::pair<int, double>>& b) {
+			if (_isnan(a.second.second))
+				return false;
+			return fabs(a.second.second) > fabs(b.second.second);
+		});
+		return vals[nPass];
+	};
+
+	LOGFONT lf;
+	memset(&lf, 0, sizeof(lf));
+	pPlot->m_pLegendFont->GetLogFont(&lf);
+	int nFontHeight = lf.lfHeight;
+	for (int i = 0; i < (int)groups.size(); i++)
+	{
+		Group& g = hgs[0].groups[i];
+
+		int x0 = i * (3*space + (colWidth + space) * maxCols) + rectPlot.left;
+		int x1 = x0 + 3*space + (colWidth + space) * maxCols;
+		
+		COLORREF clrBack = pDC->GetBkColor();
+		for (int j = 0; j < (int)g.vals.size(); j++)
+		{
+			int x = x0 + 2*space + (colWidth + space) * j;
+			std::pair<int, std::pair<int, double>> p = getVal(i, j, hgs, nPass); // g.vals[j].second;
+			COLORREF clr = hgs[p.first].types[p.second.first].clr;
+			double val = p.second.second;
+			if (!isnan(val) && pPlot->m_frectPlotArea.bottom() <= val && val <= pPlot->m_frectPlotArea.top())
+			{
+				CPoint ptv = pPlot->scale(0, val, false);
+				CRect r(x, ptv.y, x + colWidth, pt0.y);
+				pDC->FillSolidRect(r, clr);
+			}
+			else if (!isnan(val))
+			{
+				CPoint ptv = val < pPlot->m_frectPlotArea.bottom() ?
+					pPlot->scale(0, pPlot->m_frectPlotArea.bottom(), false) :
+					pPlot->scale(0, pPlot->m_frectPlotArea.top(), false);
+				CRect r(x, ptv.y, x + colWidth, pt0.y);
+				pDC->FillSolidRect(r, clr);
+
+				double val2 = val < pPlot->m_frectPlotArea.bottom() ?
+					pPlot->m_frectPlotArea.bottom() - pPlot->m_frectPlotArea.height() / 30 :
+					pPlot->m_frectPlotArea.top() + pPlot->m_frectPlotArea.height() / 30;
+				CPoint ptv2 = pPlot->scale(0, val2, false);
+
+				CRect r2(x, ptv.y, x + colWidth, ptv2.y);
+				pDC->FillSolidRect(r2, RGB(230, 230, 230));
+
+			}
+			else
+			{
+				CPoint ptv = pPlot->scale(0, pPlot->m_frectPlotArea.top(), false);
+				CRect r(x, ptv.y, x + colWidth, pt0.y);
+				pDC->FillSolidRect(r, RGB(240, 240, 240));
+			}
+		}
+		pDC->SetBkColor(clrBack);
+
+		pDC->MoveTo(x0, rectPlot.top);
+		pDC->LineTo(x0, rectPlot.bottom);
+
+		int nOldMode = pDC->SetBkMode(TRANSPARENT);
+		CRect rt(x0, pPlot->m_xAxis.m_r.top, x1, pPlot->m_xAxis.m_r.top + nFontHeight + space);
+		pDC->DrawText(g.name.c_str(), rt, DT_CENTER);
+		pDC->SetBkMode(nOldMode);
+	}
+
+	pDC->MoveTo(rectPlot.right, rectPlot.top);
+	pDC->LineTo(rectPlot.right, rectPlot.bottom);
+
+	pDC->SelectObject(pOldFont);
+	pDC->SelectObject(pOldPen);
+}
+// End of HistGroup implementation
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Plot2d
 
 COLORREF Plot2d::c_stdColors[c_stdColorsNum] =
@@ -1913,7 +2134,10 @@ COLORREF Plot2d::c_stdColors[c_stdColorsNum] =
 	RGB(0xA0, 0xA0, 0xA0),
 	RGB(166, 166, 230),
 	RGB(226, 159, 226),
-	RGB(190, 226, 190)
+	RGB(190, 226, 190),
+	RGB(128, 0, 128),
+	RGB(255, 128, 64),
+	RGB(0, 0, 0)
 };
 
 Plot2d::Plot2d()
@@ -2824,6 +3048,16 @@ void Plot2d::removeAllEllipses()
 	Invalidate();
 }
 
+void Plot2d::addHistGroup(const HistGroup& hg)
+{
+	m_hgs.push_back(hg);
+}
+
+void Plot2d::removeHistGroup()
+{
+	m_hgs.clear();
+}
+
 void Plot2d::addEvent(int nID, double x, COLORREF clr, LPCTSTR szTitle)
 {
 	CEvent ev;
@@ -3095,7 +3329,9 @@ void Plot2d::drawCurves(CDC* pDC, int nPass)
 void Plot2d::drawAxis(CDC* pDC)
 {
 	CPen* pOldPen = (CPen*)pDC->SelectObject(&m_penGrid);
-	m_xAxis.draw(pDC, this);
+	if (m_hgs.size() == 0)
+		m_xAxis.draw(pDC, this);
+
 	m_yAxis.draw(pDC, this);
 	if (m_bEnableSecondaryAxis)
 		m_yAxis2.draw(pDC, this);
@@ -3415,6 +3651,13 @@ void Plot2d::drawTip(CDC* pDC)
 
 void Plot2d::drawLegend(CDC* pDC, BOOL bPrimary)
 {
+	if (m_hgs.size() != 0)
+	{
+		if (bPrimary)
+			drawHgLegend(pDC);
+		return;
+	}
+
 	bool bLegend = bPrimary ? m_bLegend : m_bLegend2;
 	CLegendAlign eLegendAlign = bPrimary ? m_eLegendAlign : m_eLegendAlign2;
 	std::vector <Curve2d*>& curves = bPrimary ? m_curves : m_curves2;
@@ -3422,7 +3665,22 @@ void Plot2d::drawLegend(CDC* pDC, BOOL bPrimary)
 	if (!bLegend)
 		return;
 
-	if (curves.size() < 1)
+	struct LegItem {
+		int key;
+		std::string name;
+		COLORREF clr;
+		bool draw;
+	};
+	std::vector <LegItem> legs;
+	bool bHg = false;
+	{
+		for (int i = 0; i < (int)curves.size(); i++)
+		{
+			legs.push_back({ 0, curves[i]->m_name, curves[i]->m_rgb, curves[i]->m_bDrawCurve });
+		}
+	}
+
+	if (legs.size() < 1)
 		return;
 
 	CFont* pOldFont = m_pLegendFont != nullptr ? (CFont*)pDC->SelectObject(m_pLegendFont) : nullptr;
@@ -3430,11 +3688,11 @@ void Plot2d::drawLegend(CDC* pDC, BOOL bPrimary)
 	int nHeight = 0;
 	int nWidth = 0;
 	int nRowHeight;
-	for (int i = 0; i < (int)curves.size(); i++)
+	for (int i = 0; i < (int)legs.size(); i++)
 	{
-		Curve2d* pCurve = curves[i];
+		//Curve2d* pCurve = curves[i];
 		CRect r(0, 0, 0, 0);
-		int n = nRowHeight = pDC->DrawText(pCurve->m_name.c_str(), r, DT_CALCRECT);
+		int n = nRowHeight = pDC->DrawText(legs[i].name.c_str(), r, DT_CALCRECT);
 		nHeight += n + n / 2;
 		if (i == 0)
 			nHeight += n / 2;
@@ -3490,26 +3748,197 @@ void Plot2d::drawLegend(CDC* pDC, BOOL bPrimary)
 
 	COLORREF clr = pDC->GetTextColor();
 
-	BOOL bDrawCheck = bPrimary ? m_bCheckLegend : m_bCheckLegend2;
+	BOOL bDrawCheck = (bPrimary ? m_bCheckLegend : m_bCheckLegend2);
 	CRect rRow(rLegend.left, rLegend.top + nRowHeight / 2, rLegend.right, rLegend.top + nRowHeight * 3 / 2);
-	for (int i = 0; i < (int)curves.size(); i++)
+	for (int i = 0; i < (int)legs.size(); i++)
 	{
-		Curve2d* pCurve = curves[i];
+		//Curve2d* pCurve = curves[i];
 		//CPen * pOldPen = (CPen *)pDC->SelectObject(&(pCurve->m_pen));
 		//pDC->MoveTo(rRow.left + rCheck.Width() + 2, (rRow.top + rRow.bottom) / 2);
 		//pDC->LineTo(rRow.left + rCheck.Width() + 18, (rRow.top + rRow.bottom) / 2);
 		//pDC->SelectObject(pOldPen);
-		pDC->SetTextColor(pCurve->m_rgb);
+		pDC->SetTextColor(legs[i].clr);
 		CRect r = rRow;
 
 		CRect rc(rRow.left, rRow.top, rRow.left + rCheck.Width(), rRow.bottom);
-		if (bDrawCheck)
-			pDC->DrawFrameControl(rc, DFC_BUTTON, DFCS_BUTTONCHECK | (pCurve->m_bDrawCurve ? DFCS_CHECKED : 0));
-		pCurve->m_rCheckBox = rc;
+		if (bDrawCheck && !bHg)
+		{
+			pDC->DrawFrameControl(rc, DFC_BUTTON, DFCS_BUTTONCHECK | (legs[i].draw ? DFCS_CHECKED : 0));
+			curves[i]->m_rCheckBox = rc;
+		}
 
 		r.left += rc.Width() + 10;
-		pDC->DrawText(pCurve->m_name.c_str(), r, DT_LEFT);
+		pDC->DrawText(legs[i].name.c_str(), r, DT_LEFT);
 		rRow.OffsetRect(0, nRowHeight + nRowHeight / 2);
+	}
+
+	pDC->SetTextColor(clr);
+	if (pOldFont != nullptr)
+		pDC->SelectObject(pOldFont);
+}
+
+void Plot2d::drawHgLegend(CDC* pDC)
+{
+	CLegendAlign eLegendAlign = m_eLegendAlign;
+
+	struct HeadItem
+	{
+		std::string name;
+		CRect r;
+	};
+
+	struct LegItem {
+		int key;
+		std::string name;
+		std::vector<COLORREF> clr;
+		bool draw;
+	};
+
+	std::vector<HeadItem> heads;
+	std::vector <LegItem> legs;
+
+	CFont* pOldFont = m_pLegendFont != nullptr ? (CFont*)pDC->SelectObject(m_pLegendFont) : nullptr;
+
+	static CPoint ptSpace(5, 2);
+	CPoint pt0(0, 0);
+	int nHeadHeight = 0;
+	for (int i = 0; i < (int)m_hgs.size(); i++)
+	{
+		CRect r(0, 0, 0, 0);
+		int n = nHeadHeight = pDC->DrawText(m_hgs[i].name.c_str(), r, DT_CALCRECT);
+		r.OffsetRect(pt0);
+		heads.push_back({ m_hgs[i].name, r });
+		pt0.x += r.Width() + ptSpace.x;
+	}
+	int nHeadWidth = pt0.x;
+	nHeadHeight = nHeadHeight;
+	if (m_hgs.size() < 2)
+		nHeadHeight = 0;
+
+	for (std::map<int, HistGroup::Type>::iterator it = m_hgs[0].types.begin(); it != m_hgs[0].types.end(); it++)
+	{
+		std::vector<COLORREF> clrs;
+		for (int i = 0; i < (int)m_hgs.size(); i++)
+		{
+			COLORREF clr = m_hgs[i].types[it->first].clr;
+			clrs.push_back(clr);
+		}
+		legs.push_back({ it->first, it->second.name, clrs, true });
+	}
+
+	if (legs.size() < 1)
+		return;
+
+
+	int nHeight = nHeadHeight;
+	int nWidth = 0;
+	int nRowHeight;
+	for (int i = 0; i < (int)legs.size(); i++)
+	{
+		//Curve2d* pCurve = curves[i];
+		CRect r(0, 0, 0, 0);
+		int n = nRowHeight = pDC->DrawText(legs[i].name.c_str(), r, DT_CALCRECT);
+		nHeight += n + n / 4;
+		//if (i == 0)
+		//	nHeight += n / 2;
+		if (r.Width() > nWidth)
+			nWidth = r.Width();
+	}
+
+	if (nHeight <= 0)
+	{
+		if (pOldFont != nullptr)
+			pDC->SelectObject(pOldFont);
+		return;
+	}
+
+	int nLineLen = 10;
+
+	CRect rCheck(0, 0, nRowHeight, nRowHeight);
+
+	CRect rLegend(0, 0, nWidth + nLineLen + 20 + nHeadWidth, nHeight + nHeadHeight);
+	CRect rectPlot;
+	if (m_eMode == emDecart)
+	{
+		rectPlot.TopLeft() = scale(m_frectPlotArea.pt.x, m_frectPlotArea.top(), false);
+		rectPlot.BottomRight() = scale(m_frectPlotArea.right(), m_frectPlotArea.pt.y, false);
+	}
+	else if (m_eMode == emPolar)
+	{
+		rectPlot = m_rectPolar;
+		rectPlot.InflateRect(CSize(50, 50));
+	}
+	switch (eLegendAlign)
+	{
+	default:
+	case elaTopLeft:
+		if (m_areas.size() > 0)
+			rLegend.OffsetRect(rectPlot.left + 5, rectPlot.top + 40);
+		else
+			rLegend.OffsetRect(rectPlot.left + 5, rectPlot.top);
+		break;
+	case elaTopRight:
+		if (m_areas.size() > 0)
+			rLegend.OffsetRect(rectPlot.right - rLegend.Width(), rectPlot.top + 40);
+		else
+			rLegend.OffsetRect(rectPlot.right - rLegend.Width(), rectPlot.top);
+		break;
+	case elaBottomRight:
+		rLegend.OffsetRect(rectPlot.right - rLegend.Width(), rectPlot.bottom - rLegend.Height());
+		break;
+	case elaBottomLeft:
+		rLegend.OffsetRect(rectPlot.left + 2, rectPlot.bottom - rLegend.Height());
+		break;
+	}
+
+	COLORREF clr = pDC->GetTextColor();
+
+	if (heads.size() > 1)
+	{
+		for (int i = 0; i < (int)heads.size(); i++)
+		{
+			CRect r = heads[i].r;
+			r.OffsetRect(rLegend.TopLeft());
+
+			pDC->DrawText(heads[i].name.c_str(), heads[i].name.length(), r, DT_SINGLELINE);
+		}
+	}
+
+	BOOL bDrawCheck = m_bCheckLegend;
+	CRect rRow(rLegend.left, rLegend.top + nHeadHeight + nRowHeight / 8, rLegend.right, rLegend.top + nRowHeight * 3 / 2 + nHeadHeight);
+	for (int i = 0; i < (int)legs.size(); i++)
+	{
+		//Curve2d* pCurve = curves[i];
+		//CPen * pOldPen = (CPen *)pDC->SelectObject(&(pCurve->m_pen));
+		//pDC->MoveTo(rRow.left + rCheck.Width() + 2, (rRow.top + rRow.bottom) / 2);
+		//pDC->LineTo(rRow.left + rCheck.Width() + 18, (rRow.top + rRow.bottom) / 2);
+		//pDC->SelectObject(pOldPen);
+		for (int j = 0; j < (int)legs[i].clr.size(); j++)
+		{
+			COLORREF clr = pDC->GetBkColor();
+			CSize s = heads[j].r.Size(); s.cx /= 4; s.cy /= 4;
+			CRect r = heads[j].r;
+			r.OffsetRect(rRow.TopLeft());
+			r.left += s.cx;
+			r.top += s.cy;
+			r.right -= s.cx;
+			r.bottom -= s.cy;
+			pDC->FillSolidRect(r, legs[i].clr[j]);
+			pDC->SetBkColor(clr);
+		}
+		CRect r = rRow;
+
+		CRect rc(rRow.left, rRow.top, rRow.left + rCheck.Width(), rRow.bottom);
+		{
+			for (int j = 0; j < (int)m_hgs.size(); j++)
+			{
+				m_hgs[j].types[legs[i].key].rectLegend = rc;
+			}
+		}
+
+		r.left += rRow.Width() - nWidth;
+		pDC->DrawText(legs[i].name.c_str(), r, DT_LEFT);
+		rRow.OffsetRect(0, nRowHeight + nRowHeight / 4);
 	}
 
 	pDC->SetTextColor(clr);
@@ -3889,127 +4318,152 @@ void Plot2d::autoScale(bool bxAuto, bool byAuto, bool byAuto2)
 	m_xAxis.m_auto = bxAuto;
 	m_yAxis.m_auto = byAuto;
 
-	if (m_curves.size() <= 0)
+	if (m_hgs.size() != 0)
 	{
-		if (bxAuto)
-		{
-			m_frectPlotArea.pt.x = 0;
-			m_frectPlotArea.s.cx = 1;
-		}
-
+		m_frectPlotArea.pt.x = 0;
+		m_frectPlotArea.s.cx = 1;
 		if (byAuto)
 		{
-			m_frectPlotArea.pt.y = 0;
-			m_frectPlotArea.s.cy = 1;
-		}
+			double yMin = DBL_MAX, yMax = -DBL_MAX;
+			for (int i = 0; i < (int)m_hgs.size(); i++)
+			{
+				m_hgs[i].getMinMax(yMin, yMax);
+			}
 
-	}
-	else
-	{
+			m_frectPlotArea.pt.y = yMin;
+			m_frectPlotArea.s.cy = yMax - yMin;
 
-		Point2d ptMin(DBL_MAX, DBL_MAX);
-		Point2d ptMax(-DBL_MAX, -DBL_MAX);
-
-		for (int i = 0; i < (int)m_curves.size(); i++)
-		{
-			Curve2d* pCurve = m_curves[i];
-			if (!pCurve->m_bDrawCurve)
-				continue;
-
-			if (ptMin.x > pCurve->m_ptMin.x)
-				ptMin.x = pCurve->m_ptMin.x;
-
-			if (ptMax.x < pCurve->m_ptMax.x)
-				ptMax.x = pCurve->m_ptMax.x;
-
-			if (ptMin.y > pCurve->m_ptMin.y)
-				ptMin.y = pCurve->m_ptMin.y;
-
-			if (ptMax.y < pCurve->m_ptMax.y)
-				ptMax.y = pCurve->m_ptMax.y;
-		}
-
-		if (bxAuto)
-		{
-			m_frectPlotArea.pt.x = ptMin.x;
-			m_frectPlotArea.s.cx = ptMax.x - ptMin.x;
-
-			m_xAxis.onDataChanged(ptMin.x, ptMax.x);
-
-			m_frectPlotArea.pt.x = m_xAxis.m_min;
-			m_frectPlotArea.s.cx = m_xAxis.m_max - m_xAxis.m_min;
-		}
-		if (byAuto)
-		{
-			m_frectPlotArea.pt.y = ptMin.y;
-			m_frectPlotArea.s.cy= ptMax.y - ptMin.y;
-
-			m_yAxis.onDataChanged(ptMin.y, ptMax.y);
+			m_yAxis.onDataChanged(yMin, yMax);
 
 			m_frectPlotArea.pt.y = m_yAxis.m_min;
 			m_frectPlotArea.s.cy = m_yAxis.m_max - m_yAxis.m_min;
 		}
 	}
-
-	if (m_curves2.size() <= 0)
-	{
-		if (bxAuto)
-		{
-			m_frectPlotArea2.pt.x = 0;
-			m_frectPlotArea2.s.cx = 1;
-		}
-
-		if (byAuto2)
-		{
-			m_frectPlotArea2.pt.y = 0;
-			m_frectPlotArea2.s.cy = 1;
-		}
-
-		if (IsWindow(m_hWnd))
-		{
-			CRect rc;
-			GetClientRect(rc);
-
-			CClientDC dc(this);
-			computeScale(&dc, rc);
-		}
-		return;
-	}
 	else
 	{
-		Point2d ptMin(DBL_MAX, DBL_MAX);
-		Point2d ptMax(-DBL_MAX, -DBL_MAX);
 
-		for (int i = 0; i < (int)m_curves2.size(); i++)
+		if (m_curves.size() <= 0)
 		{
-			Curve2d* pCurve = m_curves2[i];
+			if (bxAuto)
+			{
+				m_frectPlotArea.pt.x = 0;
+				m_frectPlotArea.s.cx = 1;
+			}
 
-			if (ptMin.x > pCurve->m_ptMin.x)
-				ptMin.x = pCurve->m_ptMin.x;
+			if (byAuto)
+			{
+				m_frectPlotArea.pt.y = 0;
+				m_frectPlotArea.s.cy = 1;
+			}
 
-			if (ptMax.x < pCurve->m_ptMax.x)
-				ptMax.x = pCurve->m_ptMax.x;
+		}
+		else
+		{
 
-			if (ptMin.y > pCurve->m_ptMin.y)
-				ptMin.y = pCurve->m_ptMin.y;
+			Point2d ptMin(DBL_MAX, DBL_MAX);
+			Point2d ptMax(-DBL_MAX, -DBL_MAX);
 
-			if (ptMax.y < pCurve->m_ptMax.y)
-				ptMax.y = pCurve->m_ptMax.y;
+			for (int i = 0; i < (int)m_curves.size(); i++)
+			{
+				Curve2d* pCurve = m_curves[i];
+				if (!pCurve->m_bDrawCurve)
+					continue;
+
+				if (ptMin.x > pCurve->m_ptMin.x)
+					ptMin.x = pCurve->m_ptMin.x;
+
+				if (ptMax.x < pCurve->m_ptMax.x)
+					ptMax.x = pCurve->m_ptMax.x;
+
+				if (ptMin.y > pCurve->m_ptMin.y)
+					ptMin.y = pCurve->m_ptMin.y;
+
+				if (ptMax.y < pCurve->m_ptMax.y)
+					ptMax.y = pCurve->m_ptMax.y;
+			}
+
+			if (bxAuto)
+			{
+				m_frectPlotArea.pt.x = ptMin.x;
+				m_frectPlotArea.s.cx = ptMax.x - ptMin.x;
+
+				m_xAxis.onDataChanged(ptMin.x, ptMax.x);
+
+				m_frectPlotArea.pt.x = m_xAxis.m_min;
+				m_frectPlotArea.s.cx = m_xAxis.m_max - m_xAxis.m_min;
+			}
+			if (byAuto)
+			{
+				m_frectPlotArea.pt.y = ptMin.y;
+				m_frectPlotArea.s.cy = ptMax.y - ptMin.y;
+
+				m_yAxis.onDataChanged(ptMin.y, ptMax.y);
+
+				m_frectPlotArea.pt.y = m_yAxis.m_min;
+				m_frectPlotArea.s.cy = m_yAxis.m_max - m_yAxis.m_min;
+			}
 		}
 
-		if (byAuto2)
+		if (m_curves2.size() <= 0)
 		{
-			m_frectPlotArea2.pt.y = ptMin.y;
-			m_frectPlotArea2.s.cy = ptMax.y - ptMin.y;
+			if (bxAuto)
+			{
+				m_frectPlotArea2.pt.x = 0;
+				m_frectPlotArea2.s.cx = 1;
+			}
 
-			m_yAxis2.onDataChanged(ptMin.y, ptMax.y); //GetAutoValues (ptMin.y, ptMax.y, m_frectPlotArea.ptBase.y, m_frectPlotArea.ptTop.y, m_nyDiv);
+			if (byAuto2)
+			{
+				m_frectPlotArea2.pt.y = 0;
+				m_frectPlotArea2.s.cy = 1;
+			}
 
-			m_frectPlotArea2.pt.y = m_yAxis2.m_min;
-			m_frectPlotArea2.s.cy = m_yAxis2.m_max - m_yAxis2.m_min;
+			if (IsWindow(m_hWnd))
+			{
+				CRect rc;
+				GetClientRect(rc);
+
+				CClientDC dc(this);
+				computeScale(&dc, rc);
+			}
+			return;
 		}
+		else
+		{
+			Point2d ptMin(DBL_MAX, DBL_MAX);
+			Point2d ptMax(-DBL_MAX, -DBL_MAX);
 
-		m_frectPlotArea2.pt.x = m_frectPlotArea.pt.x;
-		m_frectPlotArea2.s.cx = m_frectPlotArea.s.cx;
+			for (int i = 0; i < (int)m_curves2.size(); i++)
+			{
+				Curve2d* pCurve = m_curves2[i];
+
+				if (ptMin.x > pCurve->m_ptMin.x)
+					ptMin.x = pCurve->m_ptMin.x;
+
+				if (ptMax.x < pCurve->m_ptMax.x)
+					ptMax.x = pCurve->m_ptMax.x;
+
+				if (ptMin.y > pCurve->m_ptMin.y)
+					ptMin.y = pCurve->m_ptMin.y;
+
+				if (ptMax.y < pCurve->m_ptMax.y)
+					ptMax.y = pCurve->m_ptMax.y;
+			}
+
+			if (byAuto2)
+			{
+				m_frectPlotArea2.pt.y = ptMin.y;
+				m_frectPlotArea2.s.cy = ptMax.y - ptMin.y;
+
+				m_yAxis2.onDataChanged(ptMin.y, ptMax.y); //GetAutoValues (ptMin.y, ptMax.y, m_frectPlotArea.ptBase.y, m_frectPlotArea.ptTop.y, m_nyDiv);
+
+				m_frectPlotArea2.pt.y = m_yAxis2.m_min;
+				m_frectPlotArea2.s.cy = m_yAxis2.m_max - m_yAxis2.m_min;
+			}
+
+			m_frectPlotArea2.pt.x = m_frectPlotArea.pt.x;
+			m_frectPlotArea2.s.cx = m_frectPlotArea.s.cx;
+		}
 	}
 
 	if (IsWindow(m_hWnd))
@@ -4127,6 +4581,13 @@ void Plot2d::computeScale(CDC* pDC, const CRect& rectClient)
 
 		if (!m_table.isEmpty())
 			m_table.layout(pDC, rect, this);
+
+		if (m_hgs.size() != 0)
+		{
+			CRect rplot(m_xAxis.m_r.left, m_yAxis.m_r.top, m_xAxis.m_r.right, m_yAxis.m_r.bottom);
+			for (int i=0; i<(int)m_hgs.size(); i++)
+				m_hgs[i].layout(pDC, rect, this);
+		}
 	}
 	else if (m_eMode == emPolar)
 	{
@@ -4199,16 +4660,27 @@ bool Plot2d::isArgsEqual()
 
 bool Plot2d::hitTestLegend(bool bPrimary, CPoint pt) const
 {
-	BOOL bLegend = bPrimary ? m_bLegend : m_bLegend2;
-	const std::vector <Curve2d*>& curves = bPrimary ? m_curves : m_curves2;
-
-	if (!bLegend)
-		return false;
-
-	for (int i = 0; i < (int)curves.size(); i++)
+	if (m_hgs.size() == 0)
 	{
-		if (curves[i]->m_rCheckBox.PtInRect(pt))
-			return true;
+		BOOL bLegend = (bPrimary ? m_bLegend : m_bLegend2);
+		const std::vector <Curve2d*>& curves = bPrimary ? m_curves : m_curves2;
+
+		if (!bLegend)
+			return false;
+
+		for (int i = 0; i < (int)curves.size(); i++)
+		{
+			if (curves[i]->m_rCheckBox.PtInRect(pt))
+				return true;
+		}
+	}
+	else
+	{
+		for (std::map<int, HistGroup::Type>::const_iterator it = m_hgs[0].types.begin(); it != m_hgs[0].types.end(); it++)
+		{
+			if (it->second.rectLegend.PtInRect(pt))
+				return true;
+		}
 	}
 
 	return false;
@@ -4306,6 +4778,187 @@ void Plot2d::OnCopyToClipboard()
 
 }
 
+void Plot2d::OnCopyData()
+{
+	if (false)
+	{
+		if (CountClipboardFormats() == 0)
+			return; 
+		OpenClipboard();
+
+		UINT uFormat = EnumClipboardFormats(0);
+		while (uFormat)
+		{
+			CHAR szFormatName[80];
+			if (!GetClipboardFormatName(uFormat, szFormatName, sizeof(szFormatName)))
+				strcpy_s(szFormatName, "unknown");
+
+			TRACE("%lu: %s\n", uFormat, szFormatName);
+
+			if (uFormat == 50363)
+			{
+				CStdioFile f;
+				f.Open("TestCsv.txt", CFile::modeReadWrite | CFile::modeCreate);
+				HGLOBAL hglb = GetClipboardData(uFormat);
+				LPCTSTR lpstr = (LPCTSTR)GlobalLock(hglb);
+
+				f.WriteString(lpstr);
+
+				GlobalUnlock(hglb);
+			}
+			else if (uFormat == 49898)
+			{
+				CStdioFile f;
+				f.Open("TestCsv.xml", CFile::modeReadWrite | CFile::modeCreate);
+				HGLOBAL hglb = GetClipboardData(uFormat);
+				LPCTSTR lpstr = (LPCTSTR)GlobalLock(hglb);
+
+				f.WriteString(lpstr);
+
+				GlobalUnlock(hglb);
+			}
+
+			uFormat = EnumClipboardFormats(uFormat);
+		}
+		CloseClipboard();
+	}
+
+	UINT uCsv = RegisterClipboardFormatA("Csv");
+	std::string strData;
+	if (m_curves.size() > 0)
+	{
+		bool bSucArg = true;
+		for (int i = 0; i < (int)m_curves.size(); i++)
+		{
+			if (!m_curves[i]->isSuccessiveArguments())
+			{
+				bSucArg = false;
+				break;
+			}
+		}
+
+		if (bSucArg)
+		{
+			std::vector<double> xs;
+			for (int i = 0; i < (int)m_curves.size(); i++)
+			{
+				Curve2d* pc = m_curves[i];
+				for (int j = 0; j < pc->getCount(); j++)
+				{
+					double x = pc->GetPoint(j).x;
+					if (std::find(xs.begin(), xs.end(), x) == xs.end())
+						xs.push_back(x);
+				}
+			}
+			std::sort(xs.begin(), xs.end());
+
+			std::string strHead = ::stringFormat("\"%s\";", m_xAxis.m_title.c_str());
+			
+			for (int nc = 0; nc < (int)m_curves.size(); nc++)
+			{
+				std::string s = ::stringFormat("\"%s\";", m_curves[nc]->m_name.c_str());
+				strHead += s;
+			}
+			strHead += "\r\n";
+			strData += strHead;
+
+			for (int nx = 0; nx < (int)xs.size(); nx++)
+			{
+				double x = xs[nx];
+				std::string s = ::stringFormat("%f;", x);
+				for (int nc = 0; nc < (int)m_curves.size(); nc++)
+				{
+					double y = m_curves[nc]->getY(x);
+					s += _isnan(y) ? ";" : ::stringFormat("%f;", y);
+				}
+				strData += s + "\r\n";
+			}
+		}
+		else
+		{
+			std::string strHead;
+
+			int nMaxPoints = 0;
+			for (int nc = 0; nc < (int)m_curves.size(); nc++)
+			{
+				std::string s = ::stringFormat("\"%s\";\"%s\";", m_xAxis.m_title.c_str(), m_curves[nc]->m_name.c_str());
+				strHead += s;
+
+				if (m_curves[nc]->getCount() > nMaxPoints)
+					nMaxPoints = m_curves[nc]->getCount();
+			}
+			strHead += "\r\n";
+			strData += strHead;
+			for (int np = 0; np < nMaxPoints; np++)
+			{
+				std::string row;
+				for (int nc = 0; nc < (int)m_curves.size(); nc++)
+				{
+					Curve2d* pc = m_curves[nc];
+					if (np < pc->getCount())
+					{
+						Point2d pt = pc->GetPoint(np);
+						row += ::stringFormat("%f;%f;", pt.x, pt.y);
+					}
+					else
+					{
+						row += ";;";
+					}
+				}
+				strData += row + "\r\n";
+			}
+
+		}
+	}
+	else if (m_hgs.size() > 0)
+	{
+		int count = m_hgs.size();
+		HistGroup& hg = m_hgs[0];
+
+		std::string head = ";";
+		for (int i = 0; i < (int)hg.types.size(); i++)
+		{
+			head += ::stringFormat("\"%s\";", hg.types[i].name.c_str());
+		}
+
+		strData += head + "\r\n";
+
+		for (int nr = 0; nr < (int)hg.groups.size(); nr++)
+		{
+			HistGroup::Group& g = hg.groups[nr];
+			std::string row = ::stringFormat("\"%s\";", g.name.c_str());
+			for (int nc = 0; nc < (int)hg.types.size(); nc++)
+			{
+				double val = g.getVal(hg.types[nc].key);
+				if (!_isnan(val))
+					row += ::stringFormat("%f;", val);
+				else
+					row += ";";
+			}
+			strData += row + "\r\n";
+		}
+	}
+
+
+	HGLOBAL hglbCopy = GlobalAlloc(GMEM_MOVEABLE, (strData.length() + 1) * sizeof(CHAR));
+	if (hglbCopy == NULL)
+	{
+		return;
+	}
+
+	// Lock the handle and copy the text to the buffer. 
+
+	LPTSTR lptstrCopy = (LPTSTR)GlobalLock(hglbCopy);
+	memcpy(lptstrCopy, strData.c_str(),	strData.length() * sizeof(CHAR));
+	lptstrCopy[strData.length()] = (CHAR)0;    // null character 
+	GlobalUnlock(hglbCopy);
+
+	// Place the handle on the clipboard. 
+	OpenClipboard();
+	SetClipboardData(uCsv, hglbCopy);
+	CloseClipboard();
+}
+
 void Plot2d::OnPaint()
 {
 	CPaintDC dcPaint(this); // device context for painting
@@ -4349,13 +5002,23 @@ void Plot2d::OnPaint()
 
 			drawAxis(&dc);
 
+			if (m_hgs.size() == 0)
+			{
+				drawGrid(&dc);
+				drawCurves(&dc, 0);
+				drawEvents(&dc);
+				drawMarkers(&dc, TRUE);
+			}
+			else
+			{
+				for (int i = 0; i < (int)m_hgs.size(); i++)
+				{
+					m_hgs[i].draw(&dc, this, m_hgs, i);
+				}
+			}
 
-			drawGrid(&dc);
-			drawCurves(&dc, 0);
-			drawEvents(&dc);
-			drawMarkers(&dc, TRUE);
 			drawInscriptions(&dc);
-			if (m_curves.size() > 0)
+			if (m_curves.size() > 0 || m_hgs.size() != 0)
 				drawLegend(&dc, TRUE);
 			if (m_curves2.size() > 0)
 				drawLegend(&dc, FALSE);
@@ -4879,6 +5542,11 @@ BOOL Plot2d::OnCommand(WPARAM wParam, LPARAM lParam)
 	if (wParam == ID_PLOT_COPY_TO_CLIPBOARD)
 	{
 		OnCopyToClipboard();
+		return CWnd::OnCommand(wParam, lParam);
+	}
+	else if (wParam == ID_PLOT_COPY_DATA)
+	{
+		OnCopyData();
 		return CWnd::OnCommand(wParam, lParam);
 	}
 

@@ -43,6 +43,8 @@
 #include "RingDifView.h"
 #include "ManualClusterDlg.h"
 #include "AutoClustDlg.h"
+#include "ExportAntexPg.h"
+#include "Tools.h"
 
 IMPLEMENT_DYNAMIC(CRingBar, CPaneDialog)
 
@@ -79,6 +81,7 @@ int CRingBar::c_nSigIDCs[can2::Gnss::esigInvalid] = {
 	-1,				  // S05,	// L5 1176.45
 
 	-1,				  // I05,	// 1176.45
+	-1				  // I09
 };
 
 CRingBar::CRingBar()
@@ -144,6 +147,7 @@ BEGIN_MESSAGE_MAP(CRingBar, CPaneDialog)
 	ON_COMMAND(IDC_CHECK_SIMPLE, &OnCheckSlot)
 	ON_BN_CLICKED(IDC_BUTTON_MANUAL_CLUSTER, &OnBnClickedButtonManualCluster)
 	ON_UPDATE_COMMAND_UI(IDC_BUTTON_MANUAL_CLUSTER, &OnUpdateButtonManualCluster)
+	ON_COMMAND(ID_CLUSTER_EXPORTANTEX, &CRingBar::OnClusterExportantex)
 END_MESSAGE_MAP()
 
 LRESULT CRingBar::OnInitDialog(WPARAM wParam, LPARAM lParam)
@@ -176,6 +180,14 @@ void CRingBar::onCreateView(CRingTabView* pView)
 		if (i == prn->m_metrics.maxClust)
 			m_cmbMaxClust.SetCurSel(index);
 	}
+
+	int index = m_cmbClustDistType.AddString("Max between ants");
+	m_cmbClustDistType.SetItemData(index, can2::RingNode::Metrics::ClustDist::ecdMax);
+	index = m_cmbClustDistType.AddString("Meen among ants");
+	m_cmbClustDistType.SetItemData(index, can2::RingNode::Metrics::ClustDist::ecdMean);
+	m_cmbClustDistType.SetCurSel(index);
+	index = m_cmbClustDistType.AddString("Min between ants");
+	m_cmbClustDistType.SetItemData(index, can2::RingNode::Metrics::ClustDist::ecdMin);
 
 	m_wndDists.onInitialUpdate(getRingNode(), this);
 	if (prn->childs() > 0)
@@ -211,6 +223,7 @@ void CRingBar::DoDataExchange(CDataExchange* pDX)
 
 	DDX_Control(pDX, IDC_COMBO_CLUST, m_cmbCluster);
 	DDX_Control(pDX, IDC_CUSTOM_DISTS, m_wndDists);
+	DDX_Control(pDX, IDC_COMBO_CLUST_DIST_TYPE, m_cmbClustDistType);
 	DDX_Radio(pDX, IDC_RADIO_ARMEAN, m_nMeanType);
 	DDX_Radio(pDX, IDC_RADIO_CLUST_ANY, m_nUseSignal);
 
@@ -278,12 +291,19 @@ void CRingBar::OnTimer(UINT nIDEvent)
 				else
 					prn->m_metrics.maxClust = 0;
 
+				sel = m_cmbClustDistType.GetCurSel();
+				if (sel >= 0)
+					prn->m_metrics.ecd = (can2::RingNode::Metrics::ClustDist)m_cmbClustDistType.GetItemData(sel);
+				else
+					prn->m_metrics.ecd = can2::RingNode::Metrics::ecdMax;
+
 				CWaitCursor wc;
 				int clust = dlg.m_nLevel; // m_cmbCluster.GetItemData(nSel);
-				prn->clusterize(clust, can2::RingNode::ClusterMode(m_nMeanType, m_nUseSignal), &dlg.m_mapUse, prn->m_metrics.maxClust);
+				prn->clusterize(clust, can2::RingNode::ClusterMode(m_nMeanType, m_nUseSignal), &dlg.m_mapUse); // , prn->m_metrics.maxClust);
 				m_wndDists.Invalidate();
 				CRingDoc* pDoc = m_pTabView->GetDocument();
 				m_wndDists.setSel(0, 0);
+				pDoc->onClusterChanged();
 				pDoc->select(0, 0);
 			}
 		}
@@ -327,10 +347,59 @@ void CRingBar::OnBnClickedButtonManualCluster()
 	m_wndDists.Invalidate();
 	CRingDoc* pDoc = m_pTabView->GetDocument();
 	m_wndDists.setSel(0, 0);
+	pDoc->onClusterChanged();
 	pDoc->select(0, 0);
 }
 
 void CRingBar::OnUpdateButtonManualCluster(CCmdUI* pCmdUI)
 {
 	pCmdUI->Enable(TRUE);
+}
+
+
+void CRingBar::OnClusterExportantex()
+{
+	std::pair<int, int> sel = m_wndDists.getSel();
+	CRingDoc* pDoc = m_pTabView->GetDocument();
+	m_wndDists.setSel(sel.first, sel.second);
+	pDoc->select(sel.first, sel.second);
+	can2::AntexAntenna* pa = pDoc->m_selAnt.get();
+	if (!pa->isRingAntenna())
+		return;
+	can2::RingAntenna* pr = (can2::RingAntenna*)pa;
+
+	CPropertySheet dlg("Export Antex", this);
+	CExportAntexPg pgAntex;
+
+	dlg.AddPage(&pgAntex);
+
+	pgAntex.m_strFile = pr->m_sourceFile.c_str();
+	pgAntex.m_tDate = can2::CTimeEx::fromAntexString(pr->m_date.c_str());
+	pgAntex.m_strAntType = pr->m_type.c_str();
+	pgAntex.m_strAgency = pr->m_agency.c_str();
+	pgAntex.m_strDome = pr->m_radome.c_str();
+	pgAntex.m_strSn = pr->m_serial.c_str();
+	pgAntex.m_strAntNum = pr->m_antNum.c_str();
+	pgAntex.m_strComment = pr->m_comment.c_str();
+	
+
+	if (dlg.DoModal() != IDOK)
+		return;
+
+	can2::RingAntenna ra;
+	ra = *pr;
+	ra.m_sourceFile = pgAntex.m_strFile;
+	ra.m_date = can2::CTimeEx(pgAntex.m_tDate).getAntexString();
+	ra.m_type = pgAntex.m_strAntType;
+	ra.m_radome = pgAntex.m_strDome;
+	ra.m_serial = pgAntex.m_strSn;
+	ra.m_agency = pgAntex.m_strAgency;
+	ra.m_comment = pgAntex.m_strComment;
+	ra.m_antNum = pgAntex.m_strAntNum;
+
+	std::vector<can2::AntexAntenna*> as;
+	as.push_back(&ra);
+
+	can2::AntexFile::create(ra.m_sourceFile.c_str(), as);
+
 }

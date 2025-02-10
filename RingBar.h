@@ -64,6 +64,7 @@ public:
 	int m_nMetricsType;
 	int m_nWeight;
 	CComboBox m_cmbMaxClust;
+	CComboBox m_cmbClustDistType;
 
 	static int c_nSigIDCs[can2::Gnss::esigInvalid];
 
@@ -83,4 +84,5 @@ public:
 	afx_msg void OnCheckSlot();
 	afx_msg void OnBnClickedButtonManualCluster();
 	afx_msg void OnUpdateButtonManualCluster(CCmdUI* pCmdUI);
+	afx_msg void OnClusterExportantex();
 };

@@ -60,6 +60,7 @@ void CRingSourcePg::DoDataExchange(CDataExchange* pDX)
 {
 	CPropertyPage::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LIST_SOURCE, m_lstSource);
+	DDX_Text(pDX, IDC_EDIT_TITLE, m_strTitle);
 }
 
 
@@ -116,6 +117,9 @@ BOOL CRingSourcePg::OnInitDialog()
 		lst.SetColumnWidth(1, LVSCW_AUTOSIZE);
 		lst.SetColumnWidth(2, LVSCW_AUTOSIZE);
 	}
+
+	m_strTitle = m_prn->m_title.c_str();
+	UpdateData(FALSE);
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// EXCEPTION: OCX Property Pages should return FALSE
@@ -290,6 +294,8 @@ void CRingSourcePg::OnClickedButtonRemove()
 
 void CRingSourcePg::OnOK()
 {
+	UpdateData(TRUE);
+	m_prn->m_title = m_strTitle;
 	CPropertyPage::OnOK();
 }
 

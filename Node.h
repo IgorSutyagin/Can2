@@ -79,6 +79,13 @@ namespace can2
 			eSinAndCos = 2
 		};
 
+		enum PcvMode
+		{
+			epm0 = 0,
+			epmRo = 1,
+			epmMinMax = 2
+		};
+
 		// Attributes:
 	public:
 		NodeType m_ent;
@@ -108,6 +115,9 @@ namespace can2
 
 		// Returns offset loaded from the ANTEX file
 		virtual Point3d getOffset(can2::Gnss::Signal es, double * pro=nullptr) const { return Point3d(NAN, NAN, NAN); }
+
+		// Returns maximum of fabs(pcc) for zenith angles above eleMask and bellow eleMask in meters
+		virtual std::pair<double, double> getMaxPcc(can2::Gnss::Signal es, bool noAzi=false, double eleMask = 10, PcvMode epm=epm0, OffsetMode em=eSinAndCos) const { return std::pair<double, double>(NAN, NAN); }
 
 		virtual void serialize(Archive& ar) {
 			if (ar.isStoring())

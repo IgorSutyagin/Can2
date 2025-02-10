@@ -36,6 +36,7 @@
 
 
 #include "Node.h"
+#include "AntexAntenna.h"
 
 
 namespace can2
@@ -55,7 +56,9 @@ namespace can2
 			m_ants.clear();
 		}
 
+		static bool create(const char* dest, std::vector<AntexAntenna*>& as);
 		static std::shared_ptr<AntexFile> load(const char* source);
+
 
 	// Attributes:
 	public:
@@ -78,6 +81,23 @@ namespace can2
 		virtual std::string getName() const { return m_sourceFile; }
 		virtual int childs() const { return m_ants.size(); }
 		virtual Node* getChild(int index) const { return (can2::Node *)m_ants.at(index).get(); }
+
+	// Implementation:
+	protected:
+		static void beginHeader(std::ofstream& ofs);
+		static void endHeader(std::ofstream& ofs);
+		static void comment(std::ofstream& ofs, const char * szComment);
+		static void beginAntenna(std::ofstream& ofs, const char* szTypeName, const char* szDome, const char* szSn, int nAnts, const char* szCal, double da, double ele1, double ele2, double de, int nFreqs);
+		static void beginFreq(std::ofstream& ofs, Gnss::Signal sig, bool bGdv = false);
+		static void northEastUp(std::ofstream& ofs, const Point3d& ptEnu);
+		static void noazi(std::ofstream& ofs, const AntexAntenna::SignalData& s, const AntexAntenna::Grid& grid);
+		static void azi(std::ofstream& ofs, double a, const double* pds, int nSize);
+		static void endFreq(std::ofstream& ofs, Gnss::Signal sig, bool bGdv);
+		static void beginFreqRms(std::ofstream& ofs, Gnss::Signal sig, bool bGdv);
+		static void noaziRms(std::ofstream& ofs, const double* pds, int nSize);
+		static void aziRms(std::ofstream& ofs, double a, const double* pds, int nSize);
+		static void endFreqRms(std::ofstream& ofs, Gnss::Signal sig, bool bGdv);
+		static void endAntenna(std::ofstream& ofs);
 
 	};
 	// End of AntexFile interface

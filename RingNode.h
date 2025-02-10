@@ -56,6 +56,7 @@ namespace can2
 			m_ent = entRingAntenna;
 			m_alias = alias;
 			m_sourceFile = sourceFile;
+			m_antNum = "1";
 		}
 		virtual ~RingAntenna() {}
 
@@ -63,6 +64,7 @@ namespace can2
 	public:
 		std::string m_alias; // A nickname used in Ring calibrations comparison. Initially empty
 		std::string m_sourceFile; // An ANTEX file this calibration was loaded from
+		std::string m_antNum; // Number of antennas used to create this one
 
 	// Operations:
 	public:
@@ -70,6 +72,7 @@ namespace can2
 			*(AntexAntenna*)this = *(AntexAntenna*)&a;
 			m_alias = a.m_alias;
 			m_sourceFile = a.m_sourceFile;
+			m_antNum = a.m_antNum;
 			return *this;
 		}
 
@@ -82,18 +85,22 @@ namespace can2
 	public:
 		virtual void serialize(Archive& ar) {
 			AntexAntenna::serialize(ar);
-			DWORD dwVer = 1;
+			DWORD dwVer = 2;
 			if (ar.isStoring())
 			{
 				ar << dwVer;
 				ar << m_alias;
 				ar << m_sourceFile;
+				ar << m_antNum;
 			}
 			else
 			{
 				ar >> dwVer;
 				ar >> m_alias;
 				ar >> m_sourceFile;
+				if (dwVer < 2)
+					return;
+				ar >> m_antNum;
 			}
 		}
 
@@ -169,6 +176,7 @@ namespace can2
 				esp = espMax;
 				et = etPcoPcv;
 				maxClust = 1;
+				ecd = ecdMax;
 			}
 			double eleMask; // Not really used yet. May be of use if the metrics changes
 
@@ -196,6 +204,13 @@ namespace can2
 			} et;
 
 			int maxClust; // Maximum number of clusters
+
+			enum ClustDist
+			{
+				ecdMax = 0,
+				ecdMean = 1,
+				ecdMin = 2
+			} ecd;
 
 			bool isUsed(Gnss::Signal f) const {
 				return fts.find(f) != fts.end() && fts.at(f);
@@ -256,12 +271,14 @@ namespace can2
 
 		std::string m_strSourceFile;
 
+		std::string m_title; // Used in graph titles
+
 		// Operations:
 	public:
 		void compDists();
 		void compDists2(); // Compute distance not between cluster mean but between all cluster members
 		static double norm(const AntexAntenna& a, Metrics& metrics);
-		void clusterize(int level, ClusterMode cm, std::map<std::string, bool> * useAnts = nullptr, int maxClust=0);
+		void clusterize(int level, ClusterMode cm, std::map<std::string, bool>* useAnts = nullptr); // , int maxClust = 0);
 		void clusterizeManual(std::vector<std::vector<RingAntenna*>>& cls, std::vector<std::string>& names, ClusterMode cm);
 		Cluster unite(ClusterMode cm, const Cluster& c1, const Cluster * pc2=nullptr);
 		Cluster uniteSh(ClusterMode cm, const Cluster& c1, const Cluster * pc2=nullptr);

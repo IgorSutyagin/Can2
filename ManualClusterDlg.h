@@ -86,4 +86,5 @@ public:
 	afx_msg void OnRclickTreeCluster(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnManualclusterSetclustername();
 	afx_msg void OnUpdateManualclusterSetclustername(CCmdUI* pCmdUI);
+	afx_msg void OnManualclusterRemove();
 };

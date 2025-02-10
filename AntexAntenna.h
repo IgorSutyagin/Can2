@@ -65,6 +65,7 @@ namespace can2
 		std::string m_agency; // Who calibrate this antenna
 		std::string m_numIndAnt; // Number of individual antennas calibrated
 		std::string m_date; // Calibration date
+		std::string m_comment; // Comment
 		bool m_bDifference; // If this is the difference of two calibrations
 
 		std::string getFullName() const {
@@ -192,9 +193,7 @@ namespace can2
 		// Overrides:
 	public:
 		virtual std::string getName() const { return getFullName(); }
-		virtual bool hasPcc(int es) const {
-			return m_sigs.find((Gnss::Signal)es) != m_sigs.end();
-		}
+		virtual bool hasPcc(int es) const;
 		virtual bool hasPcvRms(int es) const {
 			auto it = m_sigs.find((Gnss::Signal)es);
 			if (it == m_sigs.end())
@@ -206,6 +205,7 @@ namespace can2
 		// Return PCV in meters. The sign of the returned value
 		// is correct, i.e. it is value from ANTEX file multiplied by -1 and devided by 1000. 
 		virtual double getPcv(can2::Gnss::Signal es, double zen, double az) const;
+		virtual double getPcv(can2::Gnss::Signal es, double zen) const;
 
 		// Return PCC in meters 
 		virtual double getPcc(can2::Gnss::Signal es, double zen, double az) const;
@@ -216,8 +216,17 @@ namespace can2
 		// Returns offset loaded from the ANTEX file
 		virtual Point3d getOffset(can2::Gnss::Signal es, double* pro = nullptr) const;
 
+		// Returns max PCC for elevations above eleMask (.first) and bellow eleMask (.second)
+		virtual std::pair<double, double> getMaxPcc(can2::Gnss::Signal es, bool noAzi = false, double eleMask = 10, PcvMode epm=epm0, OffsetMode em=eSinAndCos) const;
+		
 		double calcNorm(Gnss::Signal es, OffsetMode em, bool bSimple = false, int root = -1) const;
-		double calcNormSimple(Gnss::Signal es, OffsetMode em) const;
+		//double calcNormSimple(Gnss::Signal es, OffsetMode em) const;
+
+		int getFreqNum() const {
+			return m_sigs.size();
+		}
+
+		void recalcPco(OffsetMode em = eSinAndCos, double eleMask = 0);
 
 		// Serialization:
 	public:

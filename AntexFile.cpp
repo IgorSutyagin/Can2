@@ -40,6 +40,7 @@
 #include "Points.h"
 #include "AntexFile.h"
 #include "AntexAntenna.h"
+#include "RingNode.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -51,6 +52,60 @@ using namespace can2;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // AntexFile implementation
+
+bool AntexFile::create(const char* dest, std::vector<AntexAntenna*>& as)
+{
+	std::ofstream ofs(dest);
+	if (!ofs.good())
+		return false;
+
+	beginHeader(ofs);
+	endHeader(ofs);
+
+	for (int na = 0; na < (int)as.size(); na++)
+	{
+		AntexAntenna& a = *as[na];
+
+		int nAnts = a.isRingAntenna() ? atoi(((RingAntenna*)&a)->m_antNum.c_str()) : 1;
+
+		beginAntenna(ofs, a.m_type.c_str(), a.m_radome.c_str(), a.m_serial.c_str(), nAnts, a.m_date.c_str(), 
+			a.m_grid.step.az, a.m_grid.za0.zen, a.m_grid.za1.zen, a.m_grid.step.zen, a.getFreqNum());
+
+		comment(ofs, a.m_comment.c_str());
+
+		for (auto it = a.m_sigs.begin(); it != a.m_sigs.end(); it++)
+		{
+			Gnss::Signal sig = it->first;
+			const AntexAntenna::SignalData& s = it->second;
+
+			beginFreq(ofs, sig, false);
+			{
+
+				northEastUp(ofs, s.pco);
+
+				noazi(ofs, s, a.m_grid);
+
+				for (double az = a.m_grid.za0.az; az <= a.m_grid.za1.az; az += a.m_grid.step.az)
+				{
+					std::vector<double> pcv;
+					pcv.resize(a.m_grid.nz);
+					int nz = 0;
+					for (double zen = a.m_grid.za0.zen; zen <= a.m_grid.za1.zen; zen += a.m_grid.step.zen)
+					{
+						pcv[nz++] = s.getPcv(zen, az);
+					}
+					azi(ofs, az, pcv.data(), pcv.size());
+				}
+			}
+			endFreq(ofs, sig, false);
+		}
+		endAntenna(ofs);
+	}
+
+	return true;
+
+}
+
 
 std::shared_ptr<AntexFile> AntexFile::load(const char* source)
 {
@@ -431,3 +486,249 @@ std::string AntexFile::getShortPathName(const char * sourcePath, int maxSize)
 	std::string	str = sourcePath;
 	return str.substr(std::max((int)str.length() - maxSize, 0), std::min(maxSize, (int)str.length()));
 }
+
+
+/////////////////////////////////////////////////
+// Implementation:
+void AntexFile::beginHeader(std::ofstream& ofs)
+{
+	static char cSatSys[] = { 'G', 'R', 'E', 'C', 'J', 'S', 'M' };
+	static CHAR cPcvType[] = { 'A', 'R' };
+	LPCTSTR szRefAntType = "";
+	LPCTSTR szRefAntSn = "";
+
+	CString str;
+	str.Format("%8.1f%*c%c%*cANTEX VERSION / SYST\n", 1.4, 12, ' ', cSatSys[6], 39, ' ');
+	ofs << str;
+
+	str.Format("%c%*c%20.20s%20.20sPCV TYPE / REFANT   \n", cPcvType[0], 19, ' ', szRefAntType, szRefAntSn);
+	ofs << str;
+}
+
+void AntexFile::endHeader(std::ofstream& ofs)
+{
+	CString str;
+	str.Format("%*cEND OF HEADER       \n", 60, ' ');
+	ofs << str;
+}
+
+void AntexFile::comment(std::ofstream& ofs, const char* szComment)
+{
+	//CString str;
+	//str.Format("%60.60sCOMMENT\n", szComment);
+	//m_f.WriteString(str);
+	LPCTSTR p = szComment;
+	while (*p)
+	{
+		p += strspn(p, "\r\n");
+		int nLen = strcspn(p, "\r\n");
+		if (nLen <= 0)
+			break;
+
+		CString strCom(p, std::min(nLen, 80));
+		p += nLen;
+
+		CString str;
+		str.Format("%-60.60sCOMMENT             \n", (LPCTSTR)strCom);
+		ofs << str;
+	}
+}
+
+void AntexFile::beginAntenna(std::ofstream& ofs, const char* szTypeName, const char* szDome, const char* szSn, int nAnts, const char* szCal, double da, double ele1, double ele2, double de, int nFreqs)
+{
+	CString str;
+	str.Format("%*cSTART OF ANTENNA    \n", 60, ' ');
+	ofs << str;
+
+	CHAR szTypeDome[21];
+	{
+		memset(szTypeDome, ' ', 20);
+		LPCTSTR szd = szDome != NULL && strlen(szDome) != 0 ? szDome : "NONE";
+		int nDomeLen = strlen(szd);
+		for (int i = 0; i < std::min(nDomeLen, 20); i++)
+		{
+			szTypeDome[19 - i] = szd[nDomeLen - 1 - i];
+		}
+
+		LPCTSTR szt = szTypeName != NULL ? szTypeName : "NONE";
+		int nTypeLen = strlen(szt);
+		for (int i = 0; i < std::min(nTypeLen, 20); i++)
+		{
+			szTypeDome[i] = szt[i];
+		}
+		szTypeDome[20] = '\0';
+	}
+
+	str.Format("%20.20s%20.20s%*cTYPE / SERIAL NO    \n", szTypeDome, szSn != NULL ? szSn : "", 20, ' ');
+	ofs << str;
+
+	CString strCal = szCal;
+	strCal.MakeUpper();
+	str.Format("%-20.20s%-20.20s%6i    %9.9s METH / BY / # / DATE\n", "ROBOT", "TOPCON", nAnts, (LPCTSTR)strCal);
+	ofs << str;
+
+	str.Format("  %6.1f%*cDAZI                \n", da, 52, ' ');
+	ofs << str;
+
+	str.Format("  %6.1f%6.1f%6.1f%*cZEN1 / ZEN2 / DZEN  \n", ele1, ele2, de, 40, ' ');
+	ofs << str;
+
+	str.Format("%6i%*c# OF FREQUENCIES    \n", nFreqs, 54, ' ');
+	ofs << str;
+
+}
+
+void AntexFile::beginFreq(std::ofstream& ofs, Gnss::Signal sig, bool bGdv)
+{
+	//LPCTSTR szSys = nSys == 0 ? "G" : "R";
+	//LPCTSTR szFreq = nSlot == 2 ? "02" : "01";
+	CString str;
+	LPCTSTR szCode = Gnss::getSignalCode(sig);
+	if (!bGdv)
+		str.Format("   %3.3s%*cSTART OF FREQUENCY  \n", szCode, 54, ' ');
+	else
+		str.Format("   %3.3s CPV%*cSTART OF FREQUENCY  \n", szCode, 50, ' ');
+	ofs << str;
+}
+
+void AntexFile::northEastUp(std::ofstream& ofs, const Point3d& ptEnu)
+{
+	CString str;
+	str.Format("%+10.2f%+10.2f%+10.2f%*cNORTH / EAST / UP   \n", ptEnu.n * 1000, ptEnu.e * 1000, ptEnu.u * 1000, 30, ' ');
+	ofs << str;
+}
+
+void AntexFile::noazi(std::ofstream& ofs, const AntexAntenna::SignalData& sig, const AntexAntenna::Grid& grid)
+{
+	CString str = "   NOAZI";
+	if ((int)sig.naPcv.size() < grid.nz || _isnan(sig.pcv(0)))
+	{
+		std::vector<double> pcv;
+		for (int nz = 0; nz < grid.nz; nz++)
+		{
+			double sum = 0;
+			for (int na = 0; na < grid.na-1; na++)
+			{
+				sum += sig.pcv(nz, na);
+			}
+			sum /= (grid.na - 1);
+			pcv.push_back(sum);
+		}
+
+		for (int i = 0; i < (int)pcv.size(); i++)
+		{
+			CString s;
+			s.Format("%+8.2f", -1000 * pcv[i]);
+			str += s;
+		}
+		str += "\n";
+		ofs << str;
+	}
+	else
+	{
+		for (int i = 0; i < (int)grid.nz; i++)
+		{
+			CString s;
+			s.Format("%+8.2f", -1000 * sig.pcv(i));
+			str += s;
+		}
+		str += "\n";
+		//str.Format(str);
+		ofs << str;
+	}
+}
+
+void AntexFile::azi(std::ofstream& ofs, double a, const double* pds, int nSize)
+{
+	CString str;
+	str.Format("%8.1f", a);
+	for (int i = 0; i < nSize; i++)
+	{
+		CString s;
+		s.Format("%+8.2f", -1000*pds[i]);
+		str += s;
+	}
+	str += "\n";
+	str.Format(str);
+	ofs << str;
+}
+
+void AntexFile::endFreq(std::ofstream& ofs, Gnss::Signal sig, bool bGdv)
+{
+	//LPCTSTR szSys = nSys == 0 ? "G" : "R";
+	//LPCTSTR szFreq = nSlot == 2 ? "02" : "01";
+	//str.Format("   %1.1s%2.2s%*cEND OF FREQUENCY\n", szSys, szFreq, 54, ' ');
+	LPCTSTR szCode = Gnss::getSignalCode(sig);
+	CString str;
+	if (!bGdv)
+		str.Format("   %3.3s%*cEND OF FREQUENCY    \n", szCode, 54, ' ');
+	else
+		str.Format("   %3.3s CPV%*cEND OF FREQUENCY    \n", szCode, 50, ' ');
+	ofs << str;
+}
+
+void AntexFile::beginFreqRms(std::ofstream& ofs, Gnss::Signal sig, bool bGdv)
+{
+	//LPCTSTR szSys = nSys == 0 ? "G" : "R";
+	//LPCTSTR szFreq = nSlot == 2 ? "02" : "01";
+	LPCTSTR szCode = Gnss::getSignalCode(sig);
+	CString str;
+	if (!bGdv)
+		str.Format("   %3.3s%*cSTART OF FREQ RMS   \n", szCode, 54, ' ');
+	else
+		str.Format("   %3.3s CPV%*cSTART OF FREQ RMS   \n", szCode, 50, ' ');
+	ofs << str;
+}
+
+void AntexFile::noaziRms(std::ofstream& ofs, const double* pds, int nSize)
+{
+	CString str = "   NOAZI";
+	for (int i = 0; i < nSize; i++)
+	{
+		CString s;
+		s.Format("%8.2f", 1000*pds[i]);
+		str += s;
+	}
+	str += "\n";
+	//str.Format(str);
+	ofs << str;
+}
+
+void AntexFile::aziRms(std::ofstream& ofs, double a, const double* pds, int nSize)
+{
+	CString str;
+	str.Format("%8.1f", a);
+	for (int i = 0; i < nSize; i++)
+	{
+		CString s;
+		s.Format("%8.2f", 1000*pds[i]);
+		str += s;
+	}
+	str += "\n";
+	//str.Format(str);
+	ofs << str;
+}
+
+
+void AntexFile::endFreqRms(std::ofstream& ofs, Gnss::Signal sig, bool bGdv)
+{
+	//LPCTSTR szSys = nSys == 0 ? "G" : "R";
+	//LPCTSTR szFreq = nSlot == 2 ? "02" : "01";
+	//CString str;
+	//str.Format("   %1.1s%2.2s%*cEND OF FREQ RMS\n", szSys, szFreq, 54, ' ');
+	LPCTSTR szCode = Gnss::getSignalCode(sig);
+	CString str;
+	if (!bGdv)
+		str.Format("   %3.3s%*cEND OF FREQ RMS     \n", szCode, 54, ' ');
+	else
+		str.Format("   %3.3s CPV%*cEND OF FREQ RMS     \n", szCode, 50, ' ');
+	ofs << str;
+}
+
+void AntexFile::endAntenna(std::ofstream& ofs)
+{
+	CString str;
+	str.Format("%*cEND OF ANTENNA      \n", 60, ' ');
+	ofs << str;
+}
+

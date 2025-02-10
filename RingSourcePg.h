@@ -54,6 +54,7 @@ public:
 	std::vector<can2::AntexFile*> m_afs;
 	std::shared_ptr<can2::RingNode> m_prn;
 	CListCtrl m_lstSource;
+	CString m_strTitle;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support

@@ -106,6 +106,8 @@ public:
 	DECLARE_MESSAGE_MAP()
 	afx_msg void OnFileOpen();
 	afx_msg void OnToolsRingcalibrationclustering();
+	afx_msg void OnToolsRingDpco2Csv();
+	afx_msg void OnToolsRingMaxDpcoMaxDpcv2Csv();
 };
 
 extern CCan2App theApp;

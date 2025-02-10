@@ -34,20 +34,20 @@
 //
 #pragma once
 
-//#include "Plot2d.h"
+#include "Plot2d.h"
 
-class CCan2Doc;
+class CRingDoc;
 
-class CPcoTableView : public CFormView
+class CRingIFView : public CFormView
 {
-	DECLARE_DYNCREATE(CPcoTableView)
+	DECLARE_DYNCREATE(CRingIFView)
 
 protected:
-	CPcoTableView();           // protected constructor used by dynamic creation
-	virtual ~CPcoTableView();
+	CRingIFView();           // protected constructor used by dynamic creation
+	virtual ~CRingIFView();
 
 public:
-	enum { IDD = IDD_ANTEX_PCO_TABLE };
+	enum { IDD = IDD_RING_IF_PCO };
 #ifdef _DEBUG
 	virtual void AssertValid() const;
 #ifndef _WIN32_WCE
@@ -56,14 +56,84 @@ public:
 #endif
 	bool m_bNeedInit;
 	CRect m_rCrt;
+	can2::Plot2d m_wndPlot;
 	double m_eleMask;
 	CFont m_font;
-	CListCtrl m_lstPco;
-	int m_nOffsetMode;
-	static std::string c_strFile;
+	BOOL m_bOffsetFromAntex;
+	BOOL m_bMarker;
+	CComboBox m_cmbPcvMode;
 
-	CCan2Doc* GetDocument() const;
+	double m_yMax;
+	double m_yMin;
+	double m_xMin;
+	double m_xMax;
+	BOOL m_byAuto;
+	BOOL m_bxAuto;
+	int m_yDivs;
+	int m_xDivs;
+	BOOL m_bOverlay;
+	CString m_strOverlay;
+
+	//int m_nCoord;
+	can2::Gnss::Signal getSignal(); // Selected combination
+	CComboBox m_cmbSignal;
+	CComboBox m_cmbReference;
+	enum RefType
+	{
+		ertCluster = 0,
+		ertAntenna = 1,
+		ertNone
+	};
+	struct Reference
+	{
+		Reference(RefType ert_, int n_) {
+			ert = ert_, n = n_;
+		}
+		RefType ert; 
+		int n; // Cluster number or Antenna number in RingNode depending on ert
+	};
+	std::vector <Reference> m_refs;
+	Reference getReference();
+	can2::Node::PcvMode getPcvMode();
+
+	struct Show
+	{
+		Show() : pccS(FALSE), pccC(FALSE), pco (FALSE), u(TRUE), n(TRUE), e(TRUE), h(FALSE), pcv(FALSE), naPcv(FALSE) {}
+		BOOL pccS;
+		BOOL pccC;
+		BOOL pco;
+		BOOL e;
+		BOOL n;
+		BOOL u;
+		BOOL h;
+		BOOL naPcv;
+		BOOL pcv;
+
+		bool isNothing() const {
+			return !pccS && !pccC && !pco && !e && !n && !u && !h && !naPcv && !pcv;
+		}
+	} m_show;
+
+	struct PppItem
+	{
+		PppItem() : enu(NAN, NAN, NAN) {}
+		std::string ant;
+		std::string sys;
+		std::string lab;
+		can2::Point3d enu;
+	};
+	std::vector<PppItem> m_pppItems;
+	bool selectPpp(const char * name, can2::Gnss::Signal sig, std::vector<PppItem>& pppItems) const;
+
+
+	void fillSignals();
+	void fillReferences();
+	void fillPcvMode();
+
+	CRingDoc* GetDocument() const;
 	void updateCurves();
+	void updateCurves2();
+	void enableControls();
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
@@ -72,11 +142,25 @@ protected:
 public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	virtual void OnInitialUpdate();
+	afx_msg void OnClickedRadioPCC();
+	afx_msg void OnRadioNorth();
+	afx_msg void OnRadioUp();
 	afx_msg void OnChangeEditEleMask();
-	afx_msg void OnClickedRadioMode();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 
-	afx_msg void OnBnClickedButtonExport();
-	afx_msg void OnBnClickedButtonCopy();
+	afx_msg void OnBnClickedCheckAuto();
+	afx_msg void OnChangeEditXMinMax();
+	afx_msg void OnChangeEditYMinMax();
+	afx_msg void OnBnClickedButtonAddComment();
+	afx_msg void OnBnClickedButtonRemoveComments();
+	afx_msg void OnBnClickedButtonSave();
+	afx_msg void OnBnClickedButtonLoad();
+	afx_msg void OnBnClickedCheckOverlay();
+
+	afx_msg void OnBnClickedButtonSetPlotTitle();
+	afx_msg void OnSelchangeComboSignal();
+	afx_msg void OnSelchangeComboRef();
+
+	afx_msg void OnCurveFormat();
 };
 

@@ -205,6 +205,7 @@
     <ClInclude Include="Colors.h" />
     <ClInclude Include="ComboListCtrl.h" />
     <ClInclude Include="CurveFormatPg.h" />
+    <ClInclude Include="ExportAntexPg.h" />
     <ClInclude Include="ListCtrlEx.h" />
     <ClInclude Include="FileView.h" />
     <ClInclude Include="framework.h" />
@@ -216,6 +217,8 @@
     <ClInclude Include="PcoTableView.h" />
     <ClInclude Include="PromptNameDlg.h" />
     <ClInclude Include="PromptTitleDlg.h" />
+    <ClInclude Include="RingIFView.h" />
+    <ClInclude Include="RingNaPcvView.h" />
     <ClInclude Include="Settings.h" />
     <ClInclude Include="OutputWnd.h" />
     <ClInclude Include="pch.h" />
@@ -237,6 +240,7 @@
     <ClInclude Include="SelAntDlg.h" />
     <ClInclude Include="Sph.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="Tex2Csv.h" />
     <ClInclude Include="Tools.h" />
     <ClInclude Include="TreeCtrlEx.h" />
     <ClInclude Include="TreeParser.h" />
@@ -260,6 +264,7 @@
     <ClCompile Include="Colors.cpp" />
     <ClCompile Include="ComboListCtrl.cpp" />
     <ClCompile Include="CurveFormatPg.cpp" />
+    <ClCompile Include="ExportAntexPg.cpp" />
     <ClCompile Include="ListCtrlEx.cpp" />
     <ClCompile Include="FileView.cpp" />
     <ClCompile Include="Gnss.cpp" />
@@ -284,6 +289,8 @@
     <ClCompile Include="RingDistCtrl.cpp" />
     <ClCompile Include="RingDoc.cpp" />
     <ClCompile Include="RingFrm.cpp" />
+    <ClCompile Include="RingIFView.cpp" />
+    <ClCompile Include="RingNaPcvView.cpp" />
     <ClCompile Include="RingNode.cpp" />
     <ClCompile Include="RingPcoView.cpp" />
     <ClCompile Include="RingPcvView.cpp" />
@@ -292,6 +299,7 @@
     <ClCompile Include="SelAntDlg.cpp" />
     <ClCompile Include="Settings.cpp" />
     <ClCompile Include="Sph.cpp" />
+    <ClCompile Include="Tex2Csv.cpp" />
     <ClCompile Include="Tools.cpp" />
     <ClCompile Include="TreeCtrlEx.cpp" />
     <ClCompile Include="TreeParser.cpp" />

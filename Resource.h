@@ -100,6 +100,9 @@
 #define IDD_PROPPAGE_CURVE_FORMAT       323
 #define IDD_DIALOG_AUTO_CLUSTER         325
 #define IDD_DIALOG_PROMPT_NAME          327
+#define IDD_RING_IF_PCO                 328
+#define IDD_PROPPAGE_EXPORT_ANTEX       329
+#define IDD_RING_NA_PCV                 330
 #define IDC_COMBO_SIGNAL                1000
 #define IDC_EDIT_MIN                    1001
 #define IDC_EDIT_MAX                    1002
@@ -120,6 +123,7 @@
 #define IDC_COMBO_MAX_CLUST             1010
 #define IDC_CUSTOM_PLOT                 1011
 #define IDC_LIST_PCO                    1011
+#define IDC_COMBO_CLUST_DIST_TYPE       1011
 #define IDC_CHECK_0GRID                 1012
 #define IDC_RADIO_SIN_AND_COS           1012
 #define IDC_CHECK_RAINBOW               1013
@@ -127,6 +131,7 @@
 #define IDC_RADIO_NO_WEIGHT             1014
 #define IDC_BUTTON_EXPORT               1015
 #define IDC_BUTTON_MANUAL_CLUSTER       1016
+#define IDC_BUTTON_COPY                 1016
 #define IDC_RADIO_ARMEAN                1017
 #define IDC_RADIO_RMSSPH                1018
 #define IDC_TREE_CLUSTER                1018
@@ -139,13 +144,44 @@
 #define IDC_CHECK_CLUSTER_RECTS         1022
 #define IDC_CHECK_OFFSET_FROM_ANTEX     1023
 #define IDC_LIST_CURVES                 1024
-#define IDC_CHECK_OFFSET_FROM_ANTEX2    1024
 #define IDC_CHECK_MARKER                1024
 #define IDC_RADIO_RMS                   1025
 #define IDC_RADIO_MAX                   1026
 #define IDC_LIST_ANTS                   1026
 #define IDC_COMBO_LEVEL                 1027
 #define IDC_EDIT_NAME                   1028
+#define IDC_RADIO_PCC                   1029
+#define IDC_RADIO_PCO2                  1030
+#define IDC_COMBO_REF                   1031
+#define IDC_COMBO_COMBINATION           1032
+#define IDC_EDIT1                       1032
+#define IDC_EDIT_FILE                   1032
+#define IDC_EDIT_OVERLAY                1033
+#define IDC_EDIT_ANT_TYPE               1033
+#define IDC_CHECK_OVERLAY               1034
+#define IDC_EDIT_SN                     1034
+#define IDC_COMBO_TEST                  1034
+#define IDC_BUTTON_BROWSE               1035
+#define IDC_RADIO_PCV                   1035
+#define IDC_EDIT_DOME                   1036
+#define IDC_DATETIMEPICKER1             1037
+#define IDC_EDIT_AGENCY                 1038
+#define IDC_CHECK_USE_RO                1038
+#define IDC_EDIT_COMMENT                1039
+#define IDC_RADIO_NA_PCV                1039
+#define IDC_CHECK_LEGEND                1040
+#define IDC_EDIT_ANT_NUM                1040
+#define IDC_CHECK_BANDS                 1041
+#define IDC_COMBO_PCV_MODE              1041
+#define IDC_CHECK_PCC                   1042
+#define IDC_CHECK_U                     1043
+#define IDC_CHECK_N                     1044
+#define IDC_CHECK_E                     1045
+#define IDC_CHECK_H                     1046
+#define IDC_CHECK_PCV                   1047
+#define IDC_CHECK_NA_PCV                1048
+#define IDC_CHECK_PCO                   1049
+#define IDC_CHECK_PCC2                  1050
 #define IDC_BUTTON_SAVE                 1071
 #define IDC_BUTTON_LOAD                 1072
 #define IDC_EDIT_TITLE                  1082
@@ -197,14 +233,18 @@
 #define ID_RING_REMOVE                  32780
 #define ID_PLOT2D_CURVEFORMAT           32781
 #define ID_MANUALCLUSTER_SETCLUSTERNAME 32782
+#define ID_MANUALCLUSTER_REMOVE         32783
+#define ID_CLUSTER_EXPORTANTEX          32784
+#define ID_TOOLS_RINGDPCOTOCSV          32786
+#define ID_TOOLS_RINGMAXDPCO            32787
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        329
-#define _APS_NEXT_COMMAND_VALUE         32783
-#define _APS_NEXT_CONTROL_VALUE         1029
+#define _APS_NEXT_RESOURCE_VALUE        330
+#define _APS_NEXT_COMMAND_VALUE         32788
+#define _APS_NEXT_CONTROL_VALUE         1051
 #define _APS_NEXT_SYMED_VALUE           310
 #endif
 #endif

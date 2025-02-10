@@ -87,7 +87,31 @@ namespace can2
 			S05,	// L5 1176.45
 
 			I05,	// 1176.45
-			esigInvalid
+			I09,	// 2492.028
+
+			esigInvalid,
+
+			GIFL2,	// Iono Free (fL1^2 * PhiL1 - fL2^2 * PhiL2) / (fL1^2 - fL2^2)
+			GIFL5, // Iono Free (fL1^2 * PhiL1 - fL5^2 * PhiL5) / (fL1^2 - fL5^2)
+			RIFL2,	// Iono Free (fL1^2 * PhiL1 - fL2^2 * PhiL2) / (fL1^2 - fL2^2)
+			EIFL5a,  // Iono Free (fE1^2 * PhiE1 - fE5a^2 * PhiE5a) / (fE1^2 - fE5a^2)
+			EIFL5ab,  // Iono Free (fE1^2 * PhiE1 - fE5ab^2 * PhiE5ab) / (fE1^2 - fE5ab^2)
+			EIFL5b,  // Iono Free (fE1^2 * PhiE1 - fE5b^2 * PhiE5b) / (fE1^2 - fE5b^2)
+
+			CIF0106, // Iono Free (fC01^2 * PhiC01 - fC06^2 * PhiC06) / (fC01^2 - fC06^2)
+			CIF0206, // Iono Free (fC02^2 * PhiC02 - fC06^2 * PhiC06) / (fC02^2 - fC06^2)
+
+			GWLL2, // Wide lanle used in Melbourne-Wubbena (fL1 * PhiL1 - fL2 * PhiL2) / (fL1 - fL2)
+			GWLL5,
+			RWLL2,
+			EWLL5a,
+			EWLL5ab,
+			EWLL5b,
+			CWL0106,
+			CWL0206,
+
+			esigMax
+
 		};
 
 		// Bands
@@ -97,6 +121,7 @@ namespace can2
 			ebL2 = 1,
 			ebL5 = 2,
 			ebB3E6 = 3,
+			ebS = 4,
 			ebMax
 		};
 		
@@ -118,18 +143,39 @@ namespace can2
 			const char* code; // ANTEX code
 			const char* name; // Full name
 			Band band; // Band ebL1, ebL2, ebL5, ebB3E6
+			COLORREF clr;
 		};
-		static SignalProps c_sigs[esigInvalid];
+		static SignalProps c_sigs[esigMax];
 		static constexpr double C = 299792458.;
 
 		static const char* getSignalName(int es) {
 			if (G01 <= es && es < esigInvalid)
 				return c_sigs[es].name;
+			else if (GIFL2 <= es && es < esigMax)
+				return c_sigs[es].name;
 			return "";
+		}
+
+		static const char* getSignalCode(int es) {
+			if (G01 <= es && es < esigInvalid)
+				return c_sigs[es].code;
+			else if (GIFL2 <= es && es < esigMax)
+				return c_sigs[es].code;
+			return "";
+		}
+
+		static const COLORREF getSignalColor(int es) {
+			if (G01 <= es && es < esigInvalid)
+				return c_sigs[es].clr;
+			else if (GIFL2 <= es && es < esigMax)
+				return c_sigs[es].clr;
+			return RGB(0, 0, 0);
 		}
 
 		static double getSysWl(int es) {
 			if (G01 <= es && es < esigInvalid)
+				return C / c_sigs[es].f;
+			else if (GIFL2 <= es && es < esigMax)
 				return C / c_sigs[es].f;
 			return NAN;
 		}
@@ -137,11 +183,15 @@ namespace can2
 		static double getSysFreq(int es) {
 			if (G01 <= es && es < esigInvalid)
 				return c_sigs[es].f;
+			else if (GIFL2 <= es && es < esigMax)
+				return c_sigs[es].f;
 			return NAN;
 		}
 
 		static System getSystem(int es) {
 			if (G01 <= es && es < esigInvalid)
+				return c_sigs[es].sys;
+			else if (GIFL2 <= es && es < esigMax)
 				return c_sigs[es].sys;
 			return esysInvalid;
 		}

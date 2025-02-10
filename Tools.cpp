@@ -101,4 +101,52 @@ namespace can2
 		return ptm ? ptm->tm_hour : -1;
 	}
 
+	CTimeEx CTimeEx::fromAntexString(const char* sz)
+	{
+		// 16-Apr-24
+
+		static char* seps = " \t\r\n";
+		static char* szms[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+		const char* pDay = sz + strspn(sz, seps);
+		const char* pMonth = pDay + strcspn(pDay, "-") + 1;
+		const char* pYear = pMonth + strcspn(pMonth, "-") + 1;
+		CString strDay(pDay, 2);
+		CString strMonth(pMonth, 3);
+		CString strYear(pYear, 2);
+
+		int nDay = atoi(strDay);
+		if (nDay <= 0 || 31 <= nDay)
+			return CTimeEx();
+		int nYear = atoi(strYear) + 2000;
+		if (nYear < 2000)
+			return CTimeEx();
+		int nMonth = 0;
+		for (int i = 0; i < 12; i++)
+		{
+			if (strYear.CompareNoCase(szms[i]) == 0)
+			{
+				nMonth = i + 1;
+				break;
+			}
+		}
+
+		if (nMonth <= 0)
+			return CTimeEx();
+
+		CTime t(nYear, nMonth, nDay, 0, 0, 0);
+		return t;
+	}
+
+	std::string CTimeEx::getAntexString() const
+	{
+		static char* szms[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+		return stringFormat("%02i-%s-%02i", GetDay(), szms[GetMonth() - 1], GetYear() - 2000);
+	}
+
+	CTimeEx& CTimeEx::operator=(const COleDateTime& t)
+	{
+		*this = CTime(t.GetYear(), t.GetMonth(), t.GetDay(), t.GetHour(), t.GetMinute(), t.GetSecond());
+		return *this;
+	}
+
 }

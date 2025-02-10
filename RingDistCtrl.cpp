@@ -33,7 +33,7 @@
 // 	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 #include "pch.h"
-
+#include "Can2.h"
 #include "RingDistCtrl.h"
 
 using namespace can2;
@@ -196,6 +196,8 @@ BEGIN_MESSAGE_MAP(RingDistCtrl, CWnd)
 	ON_WM_SETCURSOR()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_LBUTTONUP()
+	ON_WM_RBUTTONDOWN()
+	ON_WM_RBUTTONUP()
 	//ON_WM_MOUSEWHEEL()
 	//ON_WM_MOUSEMOVE()
 END_MESSAGE_MAP()
@@ -313,6 +315,37 @@ void RingDistCtrl::OnLButtonUp(UINT nFlags, CPoint point)
 			nm.code = IVSRINGDIST_SEL_CHANGED;
 			pParent->SendMessage(WM_NOTIFY, nControlID, (LPARAM)&nm);
 		}
+	}
+
+}
+
+void RingDistCtrl::OnRButtonDown(UINT nFlags, CPoint point)
+{
+	CWnd::OnRButtonDown(nFlags, point);
+
+	//m_sel = hitTest(point);
+	//Invalidate();
+
+	//SetCapture();
+}
+
+void RingDistCtrl::OnRButtonUp(UINT nFlags, CPoint point)
+{
+	//CWnd::OnRButtonUp(nFlags, point);
+	m_sel = hitTest(point);
+	Invalidate();
+
+	if (m_sel.first == m_sel.second && m_sel.first >= 0)
+	{
+		int menuIndex = 6;
+		CMenu menu;
+		menu.LoadMenu(IDR_POPUP_EXPLORER);
+		HMENU hMenu = menu.GetSubMenu(menuIndex)->Detach();
+		CWnd* pParent = GetParent();
+		CPoint pt = point;
+		ClientToScreen(&pt);
+		//pParent->ScreenToClient(&pt);
+		theApp.GetContextMenuManager()->ShowPopupMenu(hMenu, pt.x, pt.y, pParent, TRUE);
 	}
 
 }

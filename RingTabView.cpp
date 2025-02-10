@@ -41,6 +41,8 @@
 #include "RingPcvView.h"
 #include "RingPcoView.h"
 #include "RingDifView.h"
+#include "RingIFView.h"
+#include "RingNaPcvView.h"
 #include "RingBar.h"
 
 // CRingTabView
@@ -53,6 +55,7 @@ CRingTabView::CRingTabView()
 	m_pPcoView = nullptr;
 	m_pStatView = nullptr;
 	m_pDifView = nullptr;
+	m_pNaPcvView = nullptr;
 }
 
 CRingTabView::~CRingTabView()
@@ -105,11 +108,15 @@ int CRingTabView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	AddView(RUNTIME_CLASS(CRingPcvView), "PCV", 1);
 	AddView(RUNTIME_CLASS(CRingPcoView), "PCO", 2);
 	AddView(RUNTIME_CLASS(CRingDifView), "DIF", 3);
+	AddView(RUNTIME_CLASS(CRingIFView), "VS REF", 4);
+	AddView(RUNTIME_CLASS(CRingNaPcvView), "NA PCV", 5);
 	//AddView(RUNTIME_CLASS(CRingStatView), "STAT", 4);
 
 	m_pPcvView = (CRingPcvView*)m_wndTabs.GetTabWnd(0);
 	m_pPcoView = (CRingPcoView*)m_wndTabs.GetTabWnd(1);
 	m_pDifView = (CRingDifView*)m_wndTabs.GetTabWnd(2);
+	m_pIFView = (CRingIFView*)m_wndTabs.GetTabWnd(3);
+	m_pNaPcvView = (CRingNaPcvView*)m_wndTabs.GetTabWnd(4);
 	//m_pStatView = (CRingStatView*)m_wndTabs.GetTabWnd(3);
 
 	return 0;

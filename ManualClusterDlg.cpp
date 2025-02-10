@@ -70,6 +70,7 @@ BEGIN_MESSAGE_MAP(CManualClusterDlg, CDialogEx)
 	ON_NOTIFY(NM_RCLICK, IDC_TREE_CLUSTER, &CManualClusterDlg::OnRclickTreeCluster)
 	ON_COMMAND(ID_MANUALCLUSTER_SETCLUSTERNAME, &CManualClusterDlg::OnManualclusterSetclustername)
 	ON_UPDATE_COMMAND_UI(ID_MANUALCLUSTER_SETCLUSTERNAME, &CManualClusterDlg::OnUpdateManualclusterSetclustername)
+	ON_COMMAND(ID_MANUALCLUSTER_REMOVE, &CManualClusterDlg::OnManualclusterRemove)
 END_MESSAGE_MAP()
 
 
@@ -562,4 +563,27 @@ void CManualClusterDlg::OnUpdateManualclusterSetclustername(CCmdUI* pCmdUI)
 		pCmdUI->Enable(TRUE);
 	else
 		pCmdUI->Enable(FALSE);
+}
+
+
+void CManualClusterDlg::OnManualclusterRemove()
+{
+	if (!m_tClicked)
+		return;
+
+	DWORD dwData = m_tClicked.getData();
+	if (dwData == 1)
+	{
+		AfxMessageBox("Can't remove cluster");
+		return;
+	}
+	else
+	{
+		can2::RingAntenna* pa = (can2::RingAntenna*)dwData;
+		if (!pa->isRingAntenna())
+			return;
+		if (IDYES != AfxMessageBox("Remove this antenna?"))
+			return;
+		m_tClicked.deleteItem();
+	}
 }

@@ -264,6 +264,8 @@ namespace can2
 		Gdiplus::Rect mapRect(const Rect2d& r, const CRect& rectArea, const Point2d& ptMin, const Point2d& ptMax) const;
 		void setMarks(std::vector<COLORREF>& clrs, int nMarkSize);
 		void setMarks(std::vector<COLORREF>& clrs, std::vector<COLORREF>& clrs2, int nMarkSize);
+		bool isSuccessiveArguments() const;
+		double getY(double x) const;
 
 		// Implementation:
 	protected:
@@ -523,6 +525,67 @@ namespace can2
 	/////////////////////////////////////////////////////////////////////////////
 
 	/////////////////////////////////////////////////////////////////////////////
+	// HistGroup - histogram with grouping
+	class HistGroup
+	{
+	// Construction:
+	public:
+		HistGroup();
+		~HistGroup();
+		void reset() {
+			groups.clear();
+			types.clear();
+		}
+
+		struct Group
+		{
+			std::string name; // Name of the group to plot on X axis
+			std::vector<std::pair<int, double>> vals; // Values type and values defining the heights of hist bars
+			CRect rect; // Rectangle of the group
+
+			double getVal(int key) const {
+				auto it = std::find_if(vals.begin(), vals.end(), [&](auto& a) { return a.first == key; });
+				if (it == vals.end())
+					return NAN;
+				return it->second;
+			}
+		};
+
+		struct Type
+		{
+			Type() : key(0), clr(0) {}
+			Type(int key_, const char* name_, COLORREF clr_) : key(key_), name(name_), clr(clr_) {}
+			int key;
+			std::string name;
+			COLORREF clr;
+			CRect rectLegend;
+		};
+
+	// Attributes:
+	public:
+		std::string name;
+		std::map<int, Type> types; // Types of values
+		std::vector<Group> groups;
+		int colWidth; // The width of the column for values
+		int space; // space between columns
+		int maxCols; // Maximum number of columns in groups
+
+		bool isEmpty() const {
+			return groups.size() == 0;
+		}
+
+		void getMinMax(double& vmin, double& vmax) const;
+
+		void addGroup(const char* name, const double* pv, const char** valNames, const COLORREF * pclrs, int valCount);
+		void addGroup(const char* name, const std::vector<double>& vs, const std::vector<const char *>& valNames, const std::vector<COLORREF>& clrs);
+
+		void layout(CDC* pDC, CRect rectClient, Plot2d* pPlot);
+		void draw(CDC* pDC, Plot2d* pPlot, std::vector<HistGroup>& hgs, int nPass);
+	};
+	// End if HistGroup interface
+	/////////////////////////////////////////////////////////////////////////////
+
+	/////////////////////////////////////////////////////////////////////////////
 	// Plot2d window
 	#define IVSPLOT2D_CLASSNAME "IvsPlot2d"
 	#define CURVES_MAX		40
@@ -537,6 +600,7 @@ namespace can2
 	#define ID_PLOT_COPY_TO_CLIPBOARD	IVSPLOT_FIRST + 2
 	#define ID_PLOT_COPY_CURVE			IVSPLOT_FIRST + 3
 	#define ID_PLOT_PASTE_CURVE			IVSPLOT_FIRST + 4
+	#define ID_PLOT_COPY_DATA			IVSPLOT_FIRST + 5
 
 	#define IVSPLOT_CLIPBOARD_CURVE		"IvsPlotClipboardCurve"
 
@@ -625,7 +689,7 @@ namespace can2
 		CMode m_eMode;
 		//CPen * m_penCurves[CURVES_MAX];
 		COLORREF m_clrCurves[CURVES_MAX];
-		static const int c_stdColorsNum = 12;
+		static const int c_stdColorsNum = 15;
 		static COLORREF c_stdColors[c_stdColorsNum];
 		static COLORREF getStdColor(int nc) {
 			return c_stdColors[nc % c_stdColorsNum];
@@ -726,6 +790,8 @@ namespace can2
 		bool m_bCursorInPlot;
 		CFont* m_pLegendFont;
 
+		std::vector<HistGroup> m_hgs;
+
 		void setLegend(bool bLegend, bool bSecondary = false, bool bCheck = true) {
 			if (bSecondary)
 			{
@@ -781,6 +847,8 @@ namespace can2
 		void removeAllCircles();
 		void addEllipse(int nID, double x, double y, double dx, double dy, COLORREF clr);
 		void removeAllEllipses();
+		void addHistGroup(const HistGroup& hg);
+		void removeHistGroup();
 		void addEvent(int nID, double x, COLORREF clr, LPCTSTR szTitle);
 		void clearEvents();
 		void addArea(int nID, double x0, double x1, COLORREF clr, LPCTSTR szTitle);
@@ -804,6 +872,7 @@ namespace can2
 		void drawInscriptions(CDC* pDC);
 		void drawTip(CDC* pDC);
 		void drawLegend(CDC* pDC, BOOL bPrimary);
+		void drawHgLegend(CDC* pDC);
 
 		void drawPolarGrid(CDC& dc);
 		void drawPolarGridLabels(CDC& dc);
@@ -876,6 +945,7 @@ namespace can2
 	public:
 		afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 		afx_msg void OnCopyToClipboard();
+		afx_msg void OnCopyData();
 		virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);
 	};
 

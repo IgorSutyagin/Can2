@@ -177,6 +177,18 @@
     <ClInclude Include="PromptNameDlg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="RingIFView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ExportAntexPg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RingNaPcvView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Tex2Csv.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Can2.cpp">
@@ -321,6 +333,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="PromptNameDlg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RingIFView.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ExportAntexPg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RingNaPcvView.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Tex2Csv.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

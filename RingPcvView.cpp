@@ -49,6 +49,8 @@ void CRingPcvCtrl::onSignalChanged()
 {
 	can2::Gnss::Signal es = getSignal();
 	can2::Node* node = getNode();
+	if (node == nullptr)
+		return;
 	double ro = 0;
 	m_ptPco = node->calcOffset(es, 0, can2::Node::eSinAndCos, &ro);
 }

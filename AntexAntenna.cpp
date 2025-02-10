@@ -158,6 +158,47 @@ void AntexAntenna::normalizePcv()
 
 ////////////////////////////////
 // Implementation
+bool AntexAntenna::hasPcc(int es) const
+{
+	if (Gnss::G01 <= es && es < Gnss::esigInvalid)
+	{
+		return m_sigs.find((Gnss::Signal)es) != m_sigs.end();
+	}
+	else if (es == Gnss::GIFL2 || es == Gnss::GWLL2)
+	{
+		return hasPcc(Gnss::G01) && hasPcc(Gnss::G02);
+	}
+	else if (es == Gnss::GIFL5 || es == Gnss::GWLL5)
+	{
+		return hasPcc(Gnss::G01) && hasPcc(Gnss::G05);
+	}
+	else if (es == Gnss::RIFL2 || es == Gnss::RWLL2)
+	{
+		return hasPcc(Gnss::R01) && hasPcc(Gnss::R02);
+	}
+	else if (es == Gnss::EIFL5a || es == Gnss::EWLL5a)
+	{
+		return (hasPcc(Gnss::E01) || hasPcc(Gnss::G01)) && (hasPcc(Gnss::E05) || hasPcc(Gnss::G05));
+	}
+	else if (es == Gnss::EIFL5ab || es == Gnss::EWLL5ab)
+	{
+		return (hasPcc(Gnss::E01) || hasPcc(Gnss::G01)) && hasPcc(Gnss::E08);
+	}
+	else if (es == Gnss::EIFL5b || es == Gnss::EWLL5b)
+	{
+		return (hasPcc(Gnss::E01) || hasPcc(Gnss::G01)) && hasPcc(Gnss::E07);
+	}
+	else if (es == Gnss::CIF0106 || es == Gnss::CWL0106)
+	{
+		return (hasPcc(Gnss::C01) || hasPcc(Gnss::G01)) && hasPcc(Gnss::C06);
+	}
+	else if (es == Gnss::CIF0206 || es == Gnss::CWL0206)
+	{
+		return hasPcc(Gnss::C02) && hasPcc(Gnss::C06);
+	}
+	return false;
+}
+
 Node* AntexAntenna::subtract(const Node* pMinus) const
 {
 	if (pMinus->isAntenna())
@@ -213,13 +254,297 @@ Node* AntexAntenna::subtract(const Node* pMinus) const
 double AntexAntenna::getPcv(can2::Gnss::Signal es, double zen, double az) const
 {
 	// The sign of PCV in SignalData is correct, so do not change sign here. PCV are in meters
-	return m_sigs.at(es).getPcv(zen, az);
+	if (Gnss::G01 <= es && es < Gnss::esigInvalid)
+	{
+		return m_sigs.at(es).getPcv(zen, az);
+	}
+	else if (es == Gnss::GIFL2)
+	{
+		double pcvL1 = m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::G02).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL2 = Gnss::getSysFreq(Gnss::G02);
+		return (pcvL1 * fL1 * fL1 - pcvL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::GIFL5)
+	{
+		double pcvL1 = m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL5 = m_sigs.at(Gnss::G05).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL5 = Gnss::getSysFreq(Gnss::G05);
+		return (pcvL1 * fL1 * fL1 - pcvL5 * fL5 * fL5) / (fL1 * fL1 - fL5 * fL5);
+	}
+	else if (es == Gnss::RIFL2)
+	{
+		double pcvL1 = m_sigs.at(Gnss::R01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::R02).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::R01);
+		double fL2 = Gnss::getSysFreq(Gnss::R02);
+		return (pcvL1 * fL1 * fL1 - pcvL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::EIFL5a)
+	{
+		double pcvL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).getPcv(zen, az) : m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = hasPcc(Gnss::E05) ? m_sigs.at(Gnss::E05).getPcv(zen, az) : m_sigs.at(Gnss::G05).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E05);
+		return (pcvL1 * fL1 * fL1 - pcvL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::EIFL5ab)
+	{
+		double pcvL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).getPcv(zen, az) : m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::E08).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E08);
+		return (pcvL1 * fL1 * fL1 - pcvL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::EIFL5b)
+	{
+		double pcvL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).getPcv(zen, az) : m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::E07).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E07);
+		return (pcvL1 * fL1 * fL1 - pcvL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::CIF0106)
+	{
+		double pcvL1 = hasPcc(Gnss::C01) ? m_sigs.at(Gnss::C01).getPcv(zen, az) : m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::C06).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::C01);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		return (pcvL1 * fL1 * fL1 - pcvL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::CIF0206)
+	{
+		double pcvL1 = m_sigs.at(Gnss::C02).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::C06).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::C02);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		return (pcvL1 * fL1 * fL1 - pcvL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+
+	else if (es == Gnss::GWLL2)
+	{
+		double pcvL1 = m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::G02).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL2 = Gnss::getSysFreq(Gnss::G02);
+		return (pcvL1 * fL1 - pcvL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::GWLL5)
+	{
+		double pcvL1 = m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL5 = m_sigs.at(Gnss::G05).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL5 = Gnss::getSysFreq(Gnss::G05);
+		return (pcvL1 * fL1 - pcvL5 * fL5) / (fL1 - fL5);
+	}
+	else if (es == Gnss::RWLL2)
+	{
+		double pcvL1 = m_sigs.at(Gnss::R01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::R02).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::R01);
+		double fL2 = Gnss::getSysFreq(Gnss::R02);
+		return (pcvL1 * fL1 - pcvL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::EWLL5a)
+	{
+		double pcvL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).getPcv(zen, az) : m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = hasPcc(Gnss::E05) ? m_sigs.at(Gnss::E05).getPcv(zen, az) : m_sigs.at(Gnss::G05).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E05);
+		return (pcvL1 * fL1 - pcvL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::EWLL5ab)
+	{
+		double pcvL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).getPcv(zen, az) : m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::E08).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E08);
+		return (pcvL1 * fL1 - pcvL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::EWLL5b)
+	{
+		double pcvL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).getPcv(zen, az) : m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::E07).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E07);
+		return (pcvL1 * fL1 - pcvL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::CWL0106)
+	{
+		double pcvL1 = hasPcc(Gnss::C01) ? m_sigs.at(Gnss::C01).getPcv(zen, az) : m_sigs.at(Gnss::G01).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::C06).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::C01);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		return (pcvL1 * fL1 - pcvL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::CWL0206)
+	{
+		double pcvL1 = m_sigs.at(Gnss::C02).getPcv(zen, az);
+		double pcvL2 = m_sigs.at(Gnss::C06).getPcv(zen, az);
+		double fL1 = Gnss::getSysFreq(Gnss::C02);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		return (pcvL1 * fL1 - pcvL2 * fL2) / (fL1 - fL2);
+	}
+	return NAN;
+}
+
+double AntexAntenna::getPcv(can2::Gnss::Signal es, double zen) const
+{
+	if (!hasPcc(es))
+		return NAN;
+
+	double sum = 0;
+	int count = 0;
+	for (double az = m_grid.za0.az; az < m_grid.za1.az; az+=m_grid.step.az)
+	{
+		double pcv = getPcv(es, zen, az);
+		sum += pcv;
+		count++;
+	}
+
+	return sum / count;
 }
 
 double AntexAntenna::getPcc(can2::Gnss::Signal es, double zen, double az) const
 {
 	double pcv = getPcv(es, zen, az);
-	double pco = m_sigs.at(es).pco * ZenAz(zen, az).dirCos();
+
+	double pco = NAN;
+	if (Gnss::G01 <= es && es < Gnss::esigInvalid)
+	{
+		pco = m_sigs.at(es).pco * ZenAz(zen, az).dirCos();
+	}
+	else if (es == Gnss::GIFL2)
+	{
+		double pcoL1 = m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::G02).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL2 = Gnss::getSysFreq(Gnss::G02);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::GIFL5)
+	{
+		double pcoL1 = m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL5 = m_sigs.at(Gnss::G05).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL5 = Gnss::getSysFreq(Gnss::G05);
+		pco = (pcoL1 * fL1 * fL1 - pcoL5 * fL5 * fL5) / (fL1 * fL1 - fL5 * fL5);
+	}
+	else if (es == Gnss::RIFL2)
+	{
+		double pcoL1 = m_sigs.at(Gnss::R01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::R02).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::R01);
+		double fL2 = Gnss::getSysFreq(Gnss::R02);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::EIFL5a)
+	{
+		double pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = hasPcc(Gnss::E05) ? m_sigs.at(Gnss::E05).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G05).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E05);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::EIFL5ab)
+	{
+		double pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::E08).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E08);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::EIFL5b)
+	{
+		double pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::E07).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E07);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::CIF0106)
+	{
+		double pcoL1 = hasPcc(Gnss::C01) ? m_sigs.at(Gnss::C01).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::C06).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::C01);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::CIF0206)
+	{
+		double pcoL1 = m_sigs.at(Gnss::C02).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::C06).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::C02);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+
+	else if (es == Gnss::GWLL2)
+	{
+		double pcoL1 = m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::G02).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL2 = Gnss::getSysFreq(Gnss::G02);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::GWLL5)
+	{
+		double pcoL1 = m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL5 = m_sigs.at(Gnss::G05).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL5 = Gnss::getSysFreq(Gnss::G05);
+		pco = (pcoL1 * fL1 - pcoL5 * fL5) / (fL1 - fL5);
+	}
+	else if (es == Gnss::RWLL2)
+	{
+		double pcoL1 = m_sigs.at(Gnss::R01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::R02).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::R01);
+		double fL2 = Gnss::getSysFreq(Gnss::R02);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::EWLL5a)
+	{
+		double pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = hasPcc(Gnss::E05) ? m_sigs.at(Gnss::E05).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G05).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E05);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::EWLL5ab)
+	{
+		double pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::E08).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E08);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::EWLL5b)
+	{
+		double pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::E07).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E07);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::CWL0106)
+	{
+		double pcoL1 = hasPcc(Gnss::C01) ? m_sigs.at(Gnss::C01).pco * ZenAz(zen, az).dirCos() : m_sigs.at(Gnss::G01).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::C06).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::C01);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::CWL0206)
+	{
+		double pcoL1 = m_sigs.at(Gnss::C02).pco * ZenAz(zen, az).dirCos();
+		double pcoL2 = m_sigs.at(Gnss::C06).pco * ZenAz(zen, az).dirCos();
+		double fL1 = Gnss::getSysFreq(Gnss::C02);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
 	return pco + pcv;
 }
 
@@ -518,18 +843,321 @@ Point3d AntexAntenna::getOffset(Gnss::Signal es, double* pro) const
 {
 	if (!hasPcc(es))
 		return Point3d(NAN, NAN, NAN);
+	
+	Point3d pco(NAN, NAN, NAN);
+	if (pro != nullptr)
+		*pro = 0;
 
-	if (pro == nullptr)
-		return m_sigs.at(es).pco;
+	if (Gnss::G01 <= es && es < Gnss::esigInvalid)
+	{
+		pco = m_sigs.at(es).pco;
+	}
+	else if (es == Gnss::GIFL2)
+	{
+		Point3d pcoL1 = m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::G02).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL2 = Gnss::getSysFreq(Gnss::G02);
+		pco = (pcoL1*fL1*fL1 - pcoL2*fL2*fL2) / (fL1*fL1 - fL2*fL2);
+	}
+	else if (es == Gnss::GIFL5)
+	{
+		Point3d pcoL1 = m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL5 = m_sigs.at(Gnss::G05).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL5 = Gnss::getSysFreq(Gnss::G05);
+		pco = (pcoL1 * fL1 * fL1 - pcoL5 * fL5 * fL5) / (fL1 * fL1 - fL5 * fL5);
+	}
+	else if (es == Gnss::RIFL2)
+	{
+		Point3d pcoL1 = m_sigs.at(Gnss::R01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::R02).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::R01);
+		double fL2 = Gnss::getSysFreq(Gnss::R02);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::EIFL5a)
+	{
+		Point3d pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco : m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = hasPcc(Gnss::E05) ? m_sigs.at(Gnss::E05).pco : m_sigs.at(Gnss::G05).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E05);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::EIFL5ab)
+	{
+		Point3d pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco : m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::E08).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E08);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::EIFL5b)
+	{
+		Point3d pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco : m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::E07).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E07);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::CIF0106)
+	{
+		Point3d pcoL1 = hasPcc(Gnss::C01) ? m_sigs.at(Gnss::C01).pco : m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::C06).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::C01);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
+	else if (es == Gnss::CIF0206)
+	{
+		Point3d pcoL1 = m_sigs.at(Gnss::C02).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::C06).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::C02);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		pco = (pcoL1 * fL1 * fL1 - pcoL2 * fL2 * fL2) / (fL1 * fL1 - fL2 * fL2);
+	}
 
-	Point3d pco = m_sigs.at(es).pco;
-
-	*pro = 0;
+	else if (es == Gnss::GWLL2)
+	{
+		Point3d pcoL1 = m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::G02).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL2 = Gnss::getSysFreq(Gnss::G02);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::GWLL5)
+	{
+		Point3d pcoL1 = m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL5 = m_sigs.at(Gnss::G05).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::G01);
+		double fL5 = Gnss::getSysFreq(Gnss::G05);
+		pco = (pcoL1 * fL1 - pcoL5 * fL5) / (fL1 - fL5);
+	}
+	else if (es == Gnss::RWLL2)
+	{
+		Point3d pcoL1 = m_sigs.at(Gnss::R01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::R02).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::R01);
+		double fL2 = Gnss::getSysFreq(Gnss::R02);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::EWLL5a)
+	{
+		Point3d pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco : m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = hasPcc(Gnss::E05) ? m_sigs.at(Gnss::E05).pco : m_sigs.at(Gnss::G05).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E05);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::EWLL5ab)
+	{
+		Point3d pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco : m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::E08).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E08);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::EWLL5b)
+	{
+		Point3d pcoL1 = hasPcc(Gnss::E01) ? m_sigs.at(Gnss::E01).pco : m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::E07).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::E01);
+		double fL2 = Gnss::getSysFreq(Gnss::E07);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::CWL0106)
+	{
+		Point3d pcoL1 = hasPcc(Gnss::C01) ? m_sigs.at(Gnss::C01).pco : m_sigs.at(Gnss::G01).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::C06).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::C01);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
+	else if (es == Gnss::CWL0206)
+	{
+		Point3d pcoL1 = m_sigs.at(Gnss::C02).pco;
+		Point3d pcoL2 = m_sigs.at(Gnss::C06).pco;
+		double fL1 = Gnss::getSysFreq(Gnss::C02);
+		double fL2 = Gnss::getSysFreq(Gnss::C06);
+		pco = (pcoL1 * fL1 - pcoL2 * fL2) / (fL1 - fL2);
+	}
 	return pco;
+}
+
+std::pair<double, double> AntexAntenna::getMaxPcc(can2::Gnss::Signal es, bool noAzi, double eleMask, PcvMode epm, OffsetMode em) const
+{
+	if (es == Gnss::esigInvalid || es == Gnss::esigMax)
+	{
+		std::pair<double, double> res(NAN, NAN);
+		Gnss::Signal esMax = es == Gnss::esigInvalid ? Gnss::esigInvalid : Gnss::esigMax;
+		for (int s = Gnss::G01; s <= esMax; s++)
+		{
+			if (!hasPcc(s))
+				continue;
+
+			std::pair<double, double> r = getMaxPcc((Gnss::Signal)s, noAzi, eleMask, epm, em);
+			if (_isnan(res.first))
+				res.first = r.first;
+			else if (res.first < r.first)
+				res.first = r.first;
+
+			if (_isnan(res.second))
+				res.second = r.second;
+			else if (res.second < r.second)
+				res.second = r.second;
+		}
+
+		return res;
+	}
+
+	if (!hasPcc(es))
+		return std::pair<double, double>(NAN, NAN);
+
+	std::pair<double, double> res(NAN, NAN);
+	std::pair<double, double> resNoa(NAN, NAN);
+	double pcc0 = NAN;
+	double ro = 0;
+	if (epm == epmRo)
+	{
+		Point3d pco = calcOffset(es, eleMask, em, &ro);
+	}
+
+	std::pair<double, double> minMax(-DBL_MAX, DBL_MAX);
+	std::pair<double, double> minMaxHi(-DBL_MAX, DBL_MAX);
+	std::pair<double, double> minMaxLo(-DBL_MAX, DBL_MAX);
+	std::pair<double, double> minMaxNoa(-DBL_MAX, DBL_MAX);
+	std::pair<double, double> minMaxNoaHi(-DBL_MAX, DBL_MAX);
+	std::pair<double, double> minMaxNoaLo(-DBL_MAX, DBL_MAX);
+
+	for (double zen = m_grid.za0.zen; zen <= m_grid.za1.zen; zen += 1) //m_grid.step.zen)
+	{
+		double sum = 0;
+		int count = 0;
+		if (zen == m_grid.za0.zen)
+			pcc0 = epm == epmRo ? ro : getPcc(es, zen, 0);
+		for (double az = m_grid.za0.az; az <= m_grid.za1.az; az += m_grid.step.az)
+		{
+			double pcc = getPcc(es, zen, az) - pcc0;
+			sum += pcc;
+			count++;
+			if (zen < 90 - eleMask)
+			{
+				if (minMaxHi.first < pcc)
+					minMaxHi.first = pcc;
+				if (minMaxHi.second > pcc)
+					minMaxHi.second = pcc;
+				//if (_isnan(res.first))
+				//	res.first = fabs(pcc);
+				//else if (fabs(pcc) > res.first)
+				//	res.first = fabs(pcc);
+			}
+			else
+			{
+				if (minMaxLo.first < pcc)
+					minMaxLo.first = pcc;
+				if (minMaxLo.second > pcc)
+					minMaxLo.second = pcc;
+				//if (_isnan(res.second))
+				//	res.second = fabs(pcc);
+				//else if (fabs(pcc) > res.second)
+				//	res.second = fabs(pcc);
+			}
+			if (epm == epmMinMax && zen < 90 - eleMask)
+			{
+				if (pcc > minMax.first)
+					minMax.first = pcc;
+				if (pcc < minMax.second)
+					minMax.second = pcc;
+			}
+		}
+
+		double pcc = sum / count;
+		/*
+		if (zen < 90 - eleMask)
+		{
+			if (_isnan(resNoa.first))
+				resNoa.first = fabs(pcc);
+			else if (fabs(pcc) > resNoa.first)
+				resNoa.first = fabs(pcc);
+		}
+		else
+		{
+			if (_isnan(resNoa.second))
+				resNoa.second = fabs(pcc);
+			else if (fabs(pcc) > resNoa.second)
+				resNoa.second = fabs(pcc);
+		}
+		*/
+		if (zen < 90 - eleMask)
+		{
+			if (minMaxNoaHi.first < pcc)
+				minMaxNoaHi.first = pcc;
+			if (minMaxNoaHi.second > pcc)
+				minMaxNoaHi.second = pcc;
+			//if (_isnan(res.first))
+			//	res.first = fabs(pcc);
+			//else if (fabs(pcc) > res.first)
+			//	res.first = fabs(pcc);
+		}
+		else
+		{
+			if (minMaxNoaLo.first < pcc)
+				minMaxNoaLo.first = pcc;
+			if (minMaxNoaLo.second > pcc)
+				minMaxNoaLo.second = pcc;
+			//if (_isnan(res.second))
+			//	res.second = fabs(pcc);
+			//else if (fabs(pcc) > res.second)
+			//	res.second = fabs(pcc);
+		}
+		if (epm == epmMinMax && zen < 90 - eleMask)
+		{
+			if (pcc > minMaxNoa.first)
+				minMaxNoa.first = pcc;
+			if (pcc < minMaxNoa.second)
+				minMaxNoa.second = pcc;
+		}
+	}
+	if (epm == epmMinMax)
+	{
+		double avg = (minMax.first + minMax.second) / 2;
+		minMaxHi.first -= avg;
+		minMaxHi.second -= avg;
+		minMaxLo.first -= avg;
+		minMaxLo.second -= avg;
+
+		res.first = std::max(fabs(minMaxHi.first), fabs(minMaxHi.second));
+		res.second = std::max(fabs(minMaxLo.first), fabs(minMaxLo.second));;
+
+		double avgNoa = (minMaxNoa.first + minMaxNoa.second) / 2;
+		minMaxNoaHi.first -= avgNoa;
+		minMaxNoaHi.second -= avgNoa;
+		minMaxNoaLo.first -= avgNoa;
+		minMaxNoaLo.second -= avgNoa;
+
+		resNoa.first = std::max(fabs(minMaxNoaHi.first), fabs(minMaxNoaHi.second));
+		resNoa.second = std::max(fabs(minMaxNoaLo.first), fabs(minMaxNoaLo.second));;
+
+	}
+	else
+	{
+		res.first = std::max(fabs(minMaxHi.first), fabs(minMaxHi.second));
+		res.second = std::max(fabs(minMaxLo.first), fabs(minMaxLo.second));;
+		resNoa.first = std::max(fabs(minMaxNoaHi.first), fabs(minMaxNoaHi.second));
+		resNoa.second = std::max(fabs(minMaxNoaLo.first), fabs(minMaxNoaLo.second));;
+	}
+
+	if (noAzi)
+		return resNoa;
+
+	return res;
 }
 
 double AntexAntenna::calcNorm(Gnss::Signal es, OffsetMode em, bool bSimple, int root) const
 {
+	if (!hasPcc(es))
+		return NAN;
+
 	double ro = 0;
 	Point3d off = calcOffset(es, 0.0, em, &ro);
 	double wl = Gnss::getSysWl(es);
@@ -665,6 +1293,44 @@ double AntexAntenna::calcNorm(Gnss::Signal es, OffsetMode em, bool bSimple, int 
 	double sigma = a * sqrt(pco2 + pcvBypcc + sumPcv2);
 	return sigma;
 
+}
+
+void AntexAntenna::recalcPco(OffsetMode em, double eleMask)
+{
+	for (auto its = m_sigs.begin(); its != m_sigs.end(); its++)
+	{
+		Gnss::Signal es = its->first;
+		SignalData& s = its->second;
+
+		Point3d pco = calcOffset(es, eleMask, em);
+		SignalData sNew(es, this, pco);
+
+		for (int nz = 0; nz < m_grid.nz; nz++)
+		{
+			double zen = m_grid.za0.zen + nz * m_grid.step.zen;
+			double pcvSum = 0;
+			int pcvCount = 0;
+			for (int na = 0; na < m_grid.na; na++)
+			{
+				double az = m_grid.za0.az + na * m_grid.step.az;
+				ZenAz za(zen, az);
+
+				double pcc = s.pcv(nz, na) + s.pco * za.dirCos(); // getPcc(es, zen, az);
+
+				double pcv = pcc - pco * za.dirCos();
+				if (az < 360)
+				{
+					pcvSum += pcv;
+					pcvCount++;
+				}
+				sNew.pcv(nz, na) = pcv;
+			}
+			sNew.pcv(nz) = pcvSum / pcvCount;
+		}
+
+		s = sNew;
+	}
+	normalizePcv();
 }
 
 void AntexAntenna::serialize(Archive& ar)

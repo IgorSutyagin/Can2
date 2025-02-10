@@ -37,6 +37,8 @@
 
 #include "RingNode.h"
 
+class CRingTabView;
+
 class CRingDoc : public CDocument
 {
 protected: // create from serialization only
@@ -49,10 +51,13 @@ public:
 	std::shared_ptr<can2::AntexAntenna> m_selAnt;
 	can2::Gnss::Signal m_signal;
 
+	CRingTabView* getTabView();
+
 	// Operations
 public:
 	// Show difference between clusters or the cluster itself
 	void select(int nc1, int nc2);
+	void onClusterChanged();
 
 	// Overrides
 public:

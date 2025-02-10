@@ -42,6 +42,8 @@ class CRingPcvView;
 class CRingPcoView;
 class CRingStatView;
 class CRingDifView;
+class CRingIFView;
+class CRingNaPcvView;
 
 class CRingTabView : public CTabView
 {
@@ -63,9 +65,11 @@ public:
 	CRingBar* getRingBar() const;
 
 	CRingPcvView* m_pPcvView;
+	CRingNaPcvView* m_pNaPcvView;
 	CRingPcoView* m_pPcoView;
 	CRingStatView* m_pStatView;
 	CRingDifView* m_pDifView;
+	CRingIFView* m_pIFView;
 
 protected:
 	DECLARE_MESSAGE_MAP()

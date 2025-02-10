@@ -557,7 +557,7 @@ void CRingDifView::updateCurves()
 			m_wndPlot.setAxisTitle(FALSE, "PCO difference (mm)", FALSE);
 	}
 
-	for (int nb = 0; nb < can2::Gnss::ebMax; nb++)
+	for (int nb = 0; nb < can2::Gnss::ebS; nb++)
 	{
 		double fmin, fmax;
 		can2::Gnss::getBand((can2::Gnss::Band)nb, fmin, fmax);
@@ -696,15 +696,15 @@ void getClusterSpread(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, con
 void getClusterRects(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, const can2::RingNode::Metrics& m, std::vector<can2::Rect2d>& rects)
 {
 	rects.clear();
-	for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+	for (int nb = 0; nb < can2::Gnss::Band::ebS; nb++)
 	{
 		double fMin, fMax;
 		can2::Gnss::getBand(nb, fMin, fMax);
 		rects.push_back(can2::Rect2d(fMin / 1000000, NAN, fMax / 1000000, NAN));
 	}
 
-	bool useBands[can2::Gnss::Band::ebMax];
-	for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+	bool useBands[can2::Gnss::Band::ebS];
+	for (int nb = 0; nb < can2::Gnss::Band::ebS; nb++)
 		useBands[nb] = false;
 
 	{
@@ -724,14 +724,14 @@ void getClusterRects(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, cons
 			}
 		}
 
-		for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+		for (int nb = 0; nb < can2::Gnss::Band::ebS; nb++)
 		{
 			for (int nf = 0; nf < can2::Gnss::esigInvalid; nf++)
 			{
 				can2::Gnss::Signal es = (can2::Gnss::Signal)nf;
 				if (can2::Gnss::getBand(es) != nb)
 					continue;
-				if (nSigs[es] > 2)
+				if (nSigs[es] > 1)
 				{
 					useBands[nb] = true;
 					break;
@@ -751,7 +751,7 @@ void getClusterRects(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, cons
 
 				can2::AntexAntenna* padif = (can2::AntexAntenna*)pa1->subtract(pa0);
 
-				for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+				for (int nb = 0; nb < can2::Gnss::Band::ebS; nb++)
 				{
 					if (!useBands[nb])
 						continue;
@@ -819,7 +819,7 @@ void getClusterRects(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, cons
 				can2::RingAntenna* pa1 = ras[nc1];
 				std::map <can2::Gnss::Signal, can2::Point3d >& a1 = offs[nc1];
 
-				for (int nb = 0; nb < can2::Gnss::Band::ebMax; nb++)
+				for (int nb = 0; nb < can2::Gnss::Band::ebS; nb++)
 				{
 					if (!useBands[nb])
 						continue;
@@ -864,7 +864,7 @@ void getClusterRects(std::vector<can2::RingAntenna*>& ras, int nWhatToPlot, cons
 		}
 	}
 
-	int nBands = can2::Gnss::Band::ebMax;
+	int nBands = can2::Gnss::Band::ebS;
 	for (int nb = 0; nb < nBands; nb++)
 	{
 		if (isnan(rects[nb].pt.y) || isnan(rects[nb].s.cy))
@@ -1004,7 +1004,7 @@ void CRingDifView::updateSpreadCurves()
 			m_wndPlot.setAxisTitle(FALSE, "PCO difference (mm)", FALSE);
 	}
 
-	for (int nb = 0; nb < can2::Gnss::ebMax; nb++)
+	for (int nb = 0; nb < can2::Gnss::ebS; nb++)
 	{
 		double fmin, fmax;
 		can2::Gnss::getBand((can2::Gnss::Band)nb, fmin, fmax);

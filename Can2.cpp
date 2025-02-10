@@ -84,6 +84,8 @@ BEGIN_MESSAGE_MAP(CCan2App, CWinAppEx)
 	//ON_COMMAND(ID_FILE_PRINT_SETUP, &CWinAppEx::OnFilePrintSetup)
 	//ON_COMMAND(ID_FILE_OPEN, &CCan2App::OnFileOpen)
 	ON_COMMAND(ID_TOOLS_RINGCALIBRATIONCLUSTERING, &CCan2App::OnToolsRingcalibrationclustering)
+	ON_COMMAND(ID_TOOLS_RINGDPCOTOCSV, &CCan2App::OnToolsRingDpco2Csv)
+	ON_COMMAND(ID_TOOLS_RINGMAXDPCO, &CCan2App::OnToolsRingMaxDpcoMaxDpcv2Csv)
 END_MESSAGE_MAP()
 
 
@@ -624,4 +626,249 @@ void CCan2App::OnToolsRingcalibrationclustering()
 	CFileView* pView = getFileView();
 	pView->createNode(pgRing.m_prn.get());
 
+}
+
+void CCan2App::OnToolsRingDpco2Csv()
+{
+	const char* szFiles[3] = {
+		"D:\\User\\Ivs\\Tps2014\\cv2\\cv2\\RingAnt\\PPP\\dpcoVsClsm.csv",
+		"D:\\User\\Ivs\\Tps2014\\cv2\\cv2\\RingAnt\\PPP\\dpcoVsGpp4.csv",
+		"D:\\User\\Ivs\\Tps2014\\cv2\\cv2\\RingAnt\\PPP\\dpcoVsIGS.csv"
+	};
+
+	const char* szHeader = "antenna,GNSS,group,deltaN(mm),deltaE(mm),deltaU(mm),dpcc(mm)";
+
+	struct DpcoDpcc {
+		DpcoDpcc() : dpco(NAN, NAN, NAN), dpcc(NAN) {}
+		can2::Point3d dpco;
+		double dpcc;
+	};
+
+	struct LabData
+	{
+		std::string name;
+		DpcoDpcc data[4];
+	};
+
+	std::vector<can2::RingNode*> rns;
+	for (int i = 0; i < (int)m_nodes.size(); i++)
+	{
+		if (!m_nodes[i]->isRing())
+			continue;
+		can2::RingNode* prn = (can2::RingNode*)m_nodes[i].get();
+		rns.push_back(prn);
+	}
+	if (rns.size() <= 0)
+		return;
+
+	auto findRef = [](int nref, can2::RingNode* prn) {
+		for (int nc = 0; nc < (int)prn->m_cls.size(); nc++)
+		{
+			can2::RingNode::Cluster& c = prn->m_cls[nc];
+			if (nref == 0)
+			{
+				if (c.ants.size() > 1)
+					return c.atm.get();
+			}
+			else if (nref == 1)
+			{
+				if (c.ants.size() == 1 && c.ants[0]->getName() == "GPP4")
+					return c.ants[0].get();
+			}
+			else if (nref == 2)
+			{
+				if (c.ants.size() == 1 && c.ants[0]->getName() == "IGS")
+					return c.ants[0].get();
+			}
+		}
+		return (can2::RingAntenna *)nullptr;
+	};
+
+	for (int nref = 0; nref < 3; nref++)
+	{
+		std::ofstream ofs(szFiles[nref]);
+		if (!ofs.good())
+		{
+			AfxMessageBox("Can't save to file");
+			continue;
+		}
+
+		ofs << szHeader << std::endl;
+
+		for (int na = 0; na < (int)rns.size(); na++)
+		{
+			can2::RingNode* prn = rns[na];
+			can2::RingAntenna* pref = findRef(nref, prn);
+			if (pref == nullptr)
+				continue;
+			std::string antName = prn->m_title;
+			for (int nlab = 0; nlab < (int)prn->m_ants.size(); nlab++)
+			{
+				can2::RingAntenna* pa = prn->m_ants[nlab].get();
+				if (pa->getName() == pref->getName())
+					continue;
+				std::shared_ptr<can2::Node> pd(pref->subtract(pa));
+				if (pa == pref)
+					continue;
+				can2::AntexAntenna* pda = (can2::AntexAntenna*)pd.get();
+				if (!pda->isAntexAntenna())
+					continue;
+
+				std::string labName = pa->getName();
+				can2::Gnss::Signal sigs[4] = { can2::Gnss::GIFL2, can2::Gnss::RIFL2, can2::Gnss::EIFL5a, can2::Gnss::CIF0206 };
+				const char* szSys[4] = { "G", "R", "E", "C" };
+				for (int sys = 0; sys < 4; sys++)
+				{
+					double ro = 0;
+					can2::Point3d dpco = pda->calcOffset(sigs[sys], 7.0, can2::Node::eSinAndCos, &ro) * 1000;
+					double dpcc = pda->calcNorm(sigs[sys], can2::Node::eSinAndCos, true) * 1000;
+					ofs << antName << "," << szSys[sys] << "," << labName.c_str() << ",";
+					ofs << (_isnan(dpco.n) ? "nan" : can2::stringFormat("%.1f", dpco.n)) << ",";
+					ofs << (_isnan(dpco.e) ? "nan" : can2::stringFormat("%.1f", dpco.e)) << ",";
+					ofs << (_isnan(dpco.u) ? "nan" : can2::stringFormat("%.1f", dpco.u)) << ",";
+					ofs << (_isnan(dpcc) ? "nan" : can2::stringFormat("%.1f", dpcc)) << std::endl;
+				}
+			}
+		}
+	}
+}
+
+void CCan2App::OnToolsRingMaxDpcoMaxDpcv2Csv()
+{
+	const char* szFiles[3] = {
+		"D:\\User\\Ivs\\Tps2014\\cv2\\cv2\\RingAnt\\PPP\\max_pco_pcc_pcv_vsClsm.csv",
+		"D:\\User\\Ivs\\Tps2014\\cv2\\cv2\\RingAnt\\PPP\\max_pco_pcc_pcv_vsGpp4.csv",
+		"D:\\User\\Ivs\\Tps2014\\cv2\\cv2\\RingAnt\\PPP\\max_pco_pcc_pcv_vsIGS.csv"
+	};
+
+	const char* szHeader = "antenna,GNSS,group,deltaPco(mm),deltaPcc(mm),dpcvAbove10(mm),dpcvBelow10(mm)";
+
+	struct DpcoDpccDpcv {
+		DpcoDpccDpcv() : dpco(NAN, NAN, NAN), dpcc(NAN), dpcv(NAN, NAN) {}
+		can2::Point3d dpco;
+		double dpcc;
+		std::pair<double, double> dpcv; // first - above 10 deg, second - below 10 deg
+	};
+
+	struct LabData
+	{
+		std::string name;
+		DpcoDpccDpcv data[4];
+	};
+
+	std::vector<can2::RingNode*> rns;
+	for (int i = 0; i < (int)m_nodes.size(); i++)
+	{
+		if (!m_nodes[i]->isRing())
+			continue;
+		can2::RingNode* prn = (can2::RingNode*)m_nodes[i].get();
+		rns.push_back(prn);
+	}
+	if (rns.size() <= 0)
+		return;
+
+	auto findRef = [](int nref, can2::RingNode* prn) {
+		if (nref == 0)
+		{
+			for (int nc = 0; nc < (int)prn->m_cls.size(); nc++)
+			{
+				can2::RingNode::Cluster& c = prn->m_cls[nc];
+				if (c.ants.size() > 1)
+					return c.atm.get();
+			}
+		}
+		else
+		{
+			for (int na = 0; na < (int)prn->m_ants.size(); na++)
+			{
+				can2::RingAntenna * pa = prn->m_ants[na].get();
+				if (nref == 1)
+				{
+					if (pa->getName() == "GPP4")
+						return pa;
+				}
+				else if (nref == 2)
+				{
+					if (pa->getName() == "IGS")
+						return pa;
+				}
+			}
+		}
+		return (can2::RingAntenna*)nullptr;
+	};
+
+	for (int nref = 0; nref < 3; nref++)
+	{
+		std::ofstream ofs(szFiles[nref]);
+		if (!ofs.good())
+		{
+			AfxMessageBox("Can't save to file");
+			continue;
+		}
+
+		ofs << szHeader << std::endl;
+
+		for (int na = 0; na < (int)rns.size(); na++)
+		{
+			can2::RingNode* prn = rns[na];
+			can2::RingAntenna* pref = findRef(nref, prn);
+			if (pref == nullptr)
+				continue;
+			std::string antName = prn->m_title;
+			for (int nlab = 0; nlab < (int)prn->m_ants.size(); nlab++)
+			{
+				can2::RingAntenna* pa = prn->m_ants[nlab].get();
+				if (pa->getName() == pref->getName())
+					continue;
+				std::shared_ptr<can2::Node> pd(pref->subtract(pa));
+				if (pa == pref)
+					continue;
+				can2::AntexAntenna* pda = (can2::AntexAntenna*)pd.get();
+				if (!pda->isAntexAntenna())
+					continue;
+
+				std::string labName = pa->getName();
+
+				double ro = 0;
+				can2::Point3d pcoComp(NAN, NAN, NAN);
+				double dpccS = NAN;
+				double dpco = NAN;
+				{
+					can2::Gnss::Signal sigMax = can2::Gnss::esigInvalid;
+					for (int i = 0; i < sigMax; i++)
+					{
+						if (!pda->hasPcc(i))
+							continue;
+						can2::Point3d p = pda->calcOffset((can2::Gnss::Signal)i, 0.0, can2::Node::eSinAndCos, &ro) * 1000;
+						double dS = pda->calcNorm((can2::Gnss::Signal)i, can2::Node::eSinAndCos, true) * 1000;
+						for (int j = 0; j < 3; j++)
+						{
+							if (_isnan(pcoComp[j]))
+								pcoComp[j] = p[j];
+							else if (fabs(p[j]) > fabs(pcoComp[j]))
+								pcoComp[j] = p[j];
+						}
+						if (_isnan(dpccS))
+							dpccS = dS;
+						else if (fabs(dpccS) < fabs(dS))
+							dpccS = dS;
+						if (_isnan(dpco))
+							dpco = p.rad();
+						else if (dpco < p.rad())
+							dpco = p.rad();
+					}
+				}
+
+				std::pair<double, double> r = pda->getMaxPcc(can2::Gnss::esigInvalid, false, 10.0, can2::Node::epmMinMax, can2::Node::eSinAndCos);
+				double pcvHi = r.first * 1000;
+				double pcvLo = r.second * 1000;
+
+				ofs << antName << "," << labName.c_str() << "," 
+					<< (_isnan(dpco) ? "nan" : can2::stringFormat ("%.1f", dpco)) << "," 
+					<< (_isnan(dpccS) ? "nan" : can2::stringFormat ("%.1f", dpccS)) << "," 
+					<< (_isnan(pcvHi) ? "nan" : can2::stringFormat ("%.1f", pcvHi)) << "," 
+					<< (_isnan(pcvLo) ? "nan" : can2::stringFormat ("%.1f", pcvLo)) << std::endl;
+			}
+		}
+	}
 }

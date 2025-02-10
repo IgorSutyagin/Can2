@@ -40,6 +40,8 @@
 #include "RingPcvView.h"
 #include "RingPcoView.h"
 #include "RingDifView.h"
+#include "RingIFView.h"
+#include "RingNaPcvView.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // CRingDoc implementation
@@ -62,6 +64,20 @@ CRingDoc::~CRingDoc()
 {
 }
 
+CRingTabView* CRingDoc::getTabView()
+{
+	POSITION pos = GetFirstViewPosition();
+	while (pos != NULL)
+	{
+		CView* pView = GetNextView(pos);
+		if (pView->IsKindOf(RUNTIME_CLASS(CRingTabView)))
+		{
+			return (CRingTabView*)pView;
+		}
+	}
+	return nullptr;
+}
+
 void CRingDoc::select(int nc1, int nc2)
 {
 	if (nc1 < 0 || nc2 < 0)
@@ -78,31 +94,38 @@ void CRingDoc::select(int nc1, int nc2)
 		m_selAnt = std::shared_ptr<can2::AntexAntenna>(pa);
 	}
 
-	POSITION pos = GetFirstViewPosition();
-	while (pos != NULL)
+	CRingTabView* ptv = getTabView();
+	if (ptv != nullptr)
 	{
-		CView* pView = GetNextView(pos);
-		if (pView->IsKindOf(RUNTIME_CLASS(CRingTabView)))
+		CRingPcvView* prv = ptv->m_pPcvView;
+		if (m_selAnt != nullptr && (m_signal == can2::Gnss::esigInvalid || !m_selAnt->hasPcc(m_signal)))
 		{
-			CRingTabView* ptv = (CRingTabView*)pView;
-			CRingPcvView* prv = ptv->m_pPcvView;
-			if (m_selAnt != nullptr && (m_signal == can2::Gnss::esigInvalid || !m_selAnt->hasPcc(m_signal)) )
+			for (int ns = 0; ns < can2::Gnss::esigInvalid; ns++)
 			{
-				for (int ns = 0; ns < can2::Gnss::esigInvalid; ns++)
+				if (m_selAnt->hasPcc(ns))
 				{
-					if (m_selAnt->hasPcc(ns))
-					{
-						m_signal = (can2::Gnss::Signal)ns;
-						//prv->UpdateData(FALSE);
-						break;
-					}
+					m_signal = (can2::Gnss::Signal)ns;
+					//prv->UpdateData(FALSE);
+					break;
 				}
 			}
-			prv->regenAll();
-			ptv->m_pPcoView->updateCurves();
-			ptv->m_pDifView->updateCurves();
-			//ptv->m_pStatView->updateCurves();
 		}
+		prv->regenAll();
+		ptv->m_pPcoView->updateCurves();
+		ptv->m_pDifView->updateCurves();
+		ptv->m_pIFView->updateCurves();
+		ptv->m_pNaPcvView->updateCurves();
+	}
+
+}
+
+void CRingDoc::onClusterChanged()
+{
+	CRingTabView* ptv = getTabView();
+	if (ptv != nullptr)
+	{
+		ptv->m_pIFView->fillReferences();
+		ptv->m_pNaPcvView->fillRef();
 	}
 }
 

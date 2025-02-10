@@ -381,7 +381,7 @@ void CRingPcoView::OnInitialUpdate()
 	m_wndPlot.setMenuIDs(IDR_POPUP, 0, NULL);
 
 	m_wndPlot.setAxisPrecision(TRUE, 0);
-	m_wndPlot.setAxisPrecision(FALSE, 1);
+	m_wndPlot.setAxisPrecision(FALSE, 0);
 
 	m_wndPlot.setTitleFont(lf);
 
@@ -568,7 +568,7 @@ void CRingPcoView::updateCurves()
 
 	if (m_nCoord <= 2 || m_nCoord == 4)
 	{
-		for (int nb = 0; nb < can2::Gnss::ebMax; nb++)
+		for (int nb = 0; nb < can2::Gnss::ebS; nb++)
 		{
 			double fmin, fmax;
 			can2::Gnss::getBand((can2::Gnss::Band)nb, fmin, fmax);

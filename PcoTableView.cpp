@@ -80,6 +80,7 @@ BEGIN_MESSAGE_MAP(CPcoTableView, CFormView)
 	ON_BN_CLICKED(IDC_RADIO_ONLY_COS, &CPcoTableView::OnClickedRadioMode)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_BUTTON_EXPORT, &CPcoTableView::OnBnClickedButtonExport)
+	ON_BN_CLICKED(IDC_BUTTON_COPY, &CPcoTableView::OnBnClickedButtonCopy)
 END_MESSAGE_MAP()
 
 
@@ -327,4 +328,68 @@ void CPcoTableView::OnBnClickedButtonExport()
 	fOut.Close();
 
 	ShellExecute(GetSafeHwnd(), "open", c_strFile.c_str(), NULL, NULL, SW_SHOW);
+}
+
+
+void CPcoTableView::OnBnClickedButtonCopy()
+{
+	UpdateData(TRUE);
+	CCan2Doc* pDoc = GetDocument();
+	can2::Gnss::Signal sigSel = pDoc->m_signal;
+	can2::Node* node = pDoc->m_node;
+	if (!node->isAntenna())
+		return;
+	can2::AntexAntenna* aa = (can2::AntexAntenna*)node;
+
+	std::string strData = "Signal,East (mm) (computed);North (mm) (computed);Up (mm) (computed);East (mm) (from file);North (mm) (from file);Up (mm) (from file)\r\n";
+
+	int nIndex = 0;
+	for (int nf = can2::Gnss::G01; nf < can2::Gnss::esigInvalid; nf++)
+	{
+		can2::Gnss::Signal es = (can2::Gnss::Signal)nf;
+
+		if (!aa->hasPcc(es))
+			continue;
+
+		std::string str = can2::stringFormat("%s;", can2::Gnss::getSignalName(es));
+		strData += str;
+
+		for (int i = 0; i < 2; i++)
+		{
+			can2::Point3d off = i == 0 ? aa->calcOffset(es, m_eleMask, (can2::Node::OffsetMode)m_nOffsetMode, nullptr)
+				: aa->getOffset(es);
+			if (!off.isValid())
+				continue;
+			off *= 1000;
+
+			str = can2::stringFormat("%.2f;", off.e);
+			strData += str;
+			str = can2::stringFormat("%.2f;", off.n);
+			strData += str;
+			str = can2::stringFormat("%.2f;", off.u);
+			strData += str;
+		}
+		strData += "\r\n";
+		nIndex++;
+	}
+
+	UINT uCsv = RegisterClipboardFormatA("Csv");
+	HGLOBAL hglbCopy = GlobalAlloc(GMEM_MOVEABLE, (strData.length() + 1) * sizeof(CHAR));
+	if (hglbCopy == NULL)
+	{
+		return;
+	}
+
+	// Lock the handle and copy the text to the buffer. 
+
+	LPTSTR lptstrCopy = (LPTSTR)GlobalLock(hglbCopy);
+	memcpy(lptstrCopy, strData.c_str(), strData.length() * sizeof(CHAR));
+	lptstrCopy[strData.length()] = (CHAR)0;    // null character 
+	GlobalUnlock(hglbCopy);
+
+	// Place the handle on the clipboard. 
+	OpenClipboard();
+	SetClipboardData(uCsv, hglbCopy);
+	CloseClipboard();
+
 }

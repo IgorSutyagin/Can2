@@ -107,7 +107,10 @@ void RingNode::compDists2()
 	}
 
 	auto clustDist = [&](const Cluster& c1, const Cluster& c2) {
-		double dist = 0;
+		double distMax = 0;
+		double distMin = DBL_MAX;
+		double sumDist = 0;
+		int count = 0;
 		for (size_t i = 0; i < c1.ants.size(); i++)
 		{
 			RingAntenna* pi = c1.ants[i].get();
@@ -119,12 +122,22 @@ void RingNode::compDists2()
 				double d = antDists.find(key1) != antDists.end() ? antDists[key1] : 
 					antDists.find(key2) != antDists.end() ? antDists[key2] : NAN;
 				ASSERT(!isnan(d));
-				if (fabs(d) > dist)
-					dist = fabs(d);
+				if (fabs(d) > distMax)
+					distMax = fabs(d);
+				if (fabs(d) < distMin)
+					distMin = fabs(d);
+				sumDist += fabs(d);
+				count++;
 			}
 		}
-		return dist;
+		if (m_metrics.ecd == Metrics::ecdMax)
+			return distMax;
+		if (m_metrics.ecd == Metrics::ecdMin)
+			return distMin;
+
+		return sumDist / count;
 	};
+
 	m_dists.clear();
 	for (size_t i = 0; i < m_cls.size(); i++)
 	{
@@ -206,7 +219,7 @@ double RingNode::norm(const AntexAntenna& a, Metrics& metrics)
 	}
 }
 
-void RingNode::clusterize(int level, ClusterMode cm, std::map<std::string, bool> * useAnts, int maxClust)
+void RingNode::clusterize(int level, ClusterMode cm, std::map<std::string, bool> * useAnts) //, int maxClust)
 {
 	// Set 0 clustering level
 	m_cls.clear();
@@ -219,6 +232,8 @@ void RingNode::clusterize(int level, ClusterMode cm, std::map<std::string, bool>
 	}
 
 	compDists();
+
+	int maxClust = m_metrics.maxClust;
 
 	if (false)
 	{
@@ -596,9 +611,9 @@ RingNode::Cluster RingNode::uniteSh(ClusterMode cm, const Cluster& c1, const Clu
 		}
 	}
 
-	ShFreqProjection shp[Gnss::ebMax];
+	ShFreqProjection shp[Gnss::ebS];
 	//ShProjection shp[Gnss::ebMax];
-	for (int nb = 0; nb < Gnss::ebMax; nb++)
+	for (int nb = 0; nb < Gnss::ebS; nb++)
 	{
 		Gnss::Band eb = (Gnss::Band)nb;
 		//if (eb > 0)
@@ -634,10 +649,10 @@ RingNode::Cluster RingNode::uniteSh(ClusterMode cm, const Cluster& c1, const Clu
 		if (nBandFreqs == 0)
 			continue;
 		else if (nBandFreqs == 1)
-			shp[nb].setBands(9, 9, 1, -80);
+			shp[nb].setBands(10, 10, 1, -80);
 			//shp[nb].setBands(9, 9, -90);
 		else
-			shp[nb].setBands(9, 9, 2, -80);
+			shp[nb].setBands(10, 10, 2, -80);
 			//shp[nb].setBands(9, 9, -90);
 
 		int nMatrixSize = shp[nb].getMatrixSize();
@@ -836,6 +851,8 @@ RingNode::Cluster RingNode::uniteSh(ClusterMode cm, const Cluster& c1, const Clu
 
 	c.atm->m_alias += ")";
 	//c.atm->m_sigs = fsigs;
+
+	c.atm->recalcPco();
 	return c;
 
 }
@@ -901,7 +918,7 @@ std::string RingNode::getShortName() const
 // Serialization
 void RingNode::Metrics::serialize(Archive& ar)
 {
-	DWORD dwVer = 5;
+	DWORD dwVer = 6;
 	if (ar.isStoring())
 	{
 		ar << dwVer;
@@ -921,6 +938,7 @@ void RingNode::Metrics::serialize(Archive& ar)
 		ar << (short)esp;
 		ar << (short)et;
 		ar << maxClust;
+		ar << (short)ecd;
 	}
 	else
 	{
@@ -964,12 +982,19 @@ void RingNode::Metrics::serialize(Archive& ar)
 		{
 			ar >> maxClust;
 		}
+
+		if (dwVer >= 6)
+		{
+			short n = 0;
+			ar >> n;
+			ecd = (ClustDist)n;
+		}
 	}
 }
 
 void RingNode::serialize(Archive& ar)
 {
-	DWORD dwVer = 1001;
+	DWORD dwVer = 1002;
 	if (ar.isStoring())
 	{
 		ar << dwVer;
@@ -983,6 +1008,8 @@ void RingNode::serialize(Archive& ar)
 			m_ants[i]->serialize(ar);
 		}
 		m_metrics.serialize(ar);
+
+		ar << m_title;
 	}
 	else
 	{
@@ -1004,6 +1031,11 @@ void RingNode::serialize(Archive& ar)
 		}
 		m_metrics.serialize(ar);
 		clusterize(0, ClusterMode());
+
+		if (dwVer < 1002)
+			return;
+
+		ar >> m_title;
 	}
 }
 

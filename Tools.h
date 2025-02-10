@@ -117,6 +117,7 @@ namespace can2
 		CTimeEx() {}
 		CTimeEx(time_t t_) : CTime(t_) {}
 		CTimeEx(const CTime& t_) : CTime(t_) {}
+		CTimeEx(const COleDateTime& t_) : CTime(t_.GetYear(), t_.GetMonth(), t_.GetDay(), t_.GetHour(), t_.GetMinute(), t_.GetSecond()) {}
 
 		enum TimeRegion
 		{
@@ -130,7 +131,24 @@ namespace can2
 		int getMonthGmt() const;
 		int getDayGmt() const;
 		int getHourGmt() const;
+
+		inline operator COleDateTime() const;
+		static CTimeEx fromAntexString(const char*);
+		std::string getAntexString() const;
+		CTimeEx& operator=(const COleDateTime& t);
 	};
+
+	inline CTimeEx::operator COleDateTime() const {
+		return COleDateTime(GetYear(), GetMonth(), GetDay(), GetHour(), GetMinute(), GetSecond());
+	}
+
+	inline std::string getFileExt(const char* file) {
+		const char* p = strchr(file, '.');
+		if (p == nullptr)
+			return "";
+
+		return std::string(p);
+	}
 }
 
 
